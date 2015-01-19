@@ -49,7 +49,7 @@
    cases that show variable behavior): */
 
 #define CAL_CYCLES          10
-#define CAL_CYCLES_LONG     100
+#define CAL_CYCLES_LONG     50
 
 /* Number of subsequent hangs before abandoning an input file: */
 
@@ -69,6 +69,10 @@
 
 #define HAVOC_MAX_MULT      16
 
+/* Absolute minimum number of havoc cycles (after all adjustments): */
+
+#define HAVOC_MIN           10
+
 /* Maximum stacking for havoc-stage tweaks. The actual value is calculated
    like this: 
 
@@ -87,12 +91,12 @@
 #define HAVOC_BLK_MEDIUM    128
 #define HAVOC_BLK_LARGE     1500
 
-/* Likelihood of using non-favored inputs when there are pending, non-fuzzed
-   test cases (and when there is nothing new pending). This is expressed as
-   percentage: */
+/* Probabilities of skipping non-favored entries in the queue, expressed as
+   percentages: */
 
-#define SKIP_TO_NEW_PROB    99
-#define SKIP_NFAV_PROB      90
+#define SKIP_TO_NEW_PROB    99 /* ...when there are new, pending favorites */
+#define SKIP_NFAV_OLD_PROB  95 /* ...no new favs, cur entry already fuzzed */
+#define SKIP_NFAV_NEW_PROB  75 /* ...no new favs, cur entry not fuzzed yet */
 
 /* Splicing cycle count: */
 
@@ -117,6 +121,28 @@
 
 #define MAX_FILE            (1 * 1024 * 1024)
 
+/* Maximum dictionary token size (-x), in bytes: */
+
+#define MAX_DICT_FILE       128
+
+/* Length limits for auto-detected dictionary tokens: */
+
+#define MIN_AUTO_EXTRA      3
+#define MAX_AUTO_EXTRA      32
+
+/* Maximum number of user-specified dictionary tokens to use in deterministic
+   steps; past this point, the "extras/user" step will be still carried out,
+   but with proportionally lower odds: */
+
+#define MAX_DET_EXTRAS      200
+
+/* Maximum number of auto-extracted dictionary tokens to actually use in fuzzing
+   (first value), and to keep in memory as candidates. The latter should be much
+   higher than the former. */
+
+#define USE_AUTO_EXTRAS     50
+#define MAX_AUTO_EXTRAS     (USE_AUTO_EXTRAS * 10)
+
 /* UI refresh frequency (Hz): */
 
 #define UI_TARGET_HZ        4
@@ -132,7 +158,7 @@
 
 /* Sync interval (havoc cycles): */
 
-#define SYNC_INTERVAL       10
+#define SYNC_INTERVAL       5
 
 /* List of interesting values to use in fuzzing. */
 
@@ -207,15 +233,18 @@
 
 #define FORK_WAIT_MULT      10
 
-/* Calibration timeout multiplier (%). */
+/* Calibration timeout adjustments, to be a bit more generous when resuming
+   fuzzing sessions or trying to calibrate already-added internal finds.
+   The first value is a percentage, the other is in milliseconds: */
 
-#define CAL_TMOUT_PERC      150
+#define CAL_TMOUT_PERC      125
+#define CAL_TMOUT_ADD       50
 
 /* Map size for the traced binary (2^MAP_SIZE_POW2). Must be greater than
    2; you probably want to keep it under 18 or so for performance reasons
    (adjusting AFL_INST_RATIO when compiling is probably a better way to solve
-   problems). You need to recompile the target binary after changing this -
-   otherwise, SEGVs may ensue. */
+   problems with complex programs). You need to recompile the target binary
+   after changing this - otherwise, SEGVs may ensue. */
 
 #define MAP_SIZE_POW2       16
 #define MAP_SIZE            (1 << MAP_SIZE_POW2)

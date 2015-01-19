@@ -10,6 +10,9 @@ Released under terms and conditions of Apache License, Version 2.0.
 For new versions and additional information, check out:
 http://lcamtuf.coredump.cx/afl/
 
+To compare notes with other users or get notified about major new features,
+send a mail to <afl-users+subscribe@googlegroups.com>.
+
 1) Challenges of guided fuzzing
 -------------------------------
 
@@ -55,7 +58,7 @@ form of edge coverage to easily detect subtle, local-scale changes to program
 control flow, without being bogged down by complex comparisons between multiple
 long-winded execution paths.
 
-The overall algorithm can be summed up as:
+Simplifying a bit, the overall algorithm can be summed up as:
 
   1) Load user-supplied initial test cases into the queue,
 
@@ -77,7 +80,7 @@ The discovered test cases are also periodically culled to eliminate ones that
 have been obsoleted by newer, higher-coverage finds.
 
 The strategies mentioned in step 4 are fairly straightforward, but go well
-beyond the functionality of  tools such as zzuf and honggfuzz and lead to
+beyond the functionality of tools such as zzuf and honggfuzz and lead to
 additional finds; this is discussed in more detail at http://goo.gl/SoZJ47.
 
 As a side result of the fuzzing process, the tool creates a small,
@@ -173,9 +176,9 @@ executed process; this is seldom necessary, perhaps except for video decoders.
 
 Tips for optimizing the performance of the process are discussed in
 perf_tips.txt. Note that the fuzzer starts by meticulously performing an array
-of deterministic fuzzing steps, which can take many hours or days. If you want
-more traditional behavior akin to zzuf or honggfuzz, use the -d option to get
-quick but less systematic and less in-depth results right away.
+of deterministic fuzzing steps, which can take several days. If you want more
+traditional behavior akin to zzuf or honggfuzz, use the -d option to get quick
+but less systematic and less in-depth results right away.
 
 6) Interpreting output
 ----------------------
@@ -183,7 +186,8 @@ quick but less systematic and less in-depth results right away.
 The fuzzing process will continue until you press Ctrl-C. See the
 status_screen.txt file for information on how to interpret the displayed stats
 and monitor the health of the process. At the *very* minimum, you want to allow
-the fuzzer to complete one queue cycle, which may take a day or so.
+the fuzzer to complete one queue cycle, which may take anywhere from a couple
+of hours to a week or so.
 
 There are three subdirectories created within the output directory and updated
 in real time:
@@ -208,12 +212,24 @@ early in the process, but this should quickly taper off.
 The file names for crashes and hangs should let you correlate them with the
 parent, non-faulting queue entries. This should help with debugging.
 
-Any existing output directory can be also used to resume aborted jobs; simply do:
+When you can't reproduce a crash found by afl-fuzz, the most likely cause is
+that you are not setting the same memory limit as used by the tool. Try:
 
-$ ./afl-fuzz -i old_output_dir -o new_output_dir [...etc...]
+$ LIMIT_MB=50
+$ ( ulimit -Sv $[LIMIT_MB << 10]; /path/to/tested_binary ... )
+
+Change LIMIT_MB to match the -m parameter passed to afl-fuzz. On OpenBSD,
+also change -Sv to -Sd.
+
+Any existing output directory can be also used to resume aborted jobs; try:
+
+$ ./afl-fuzz -i- -o existing_output_dir [...etc...]
 
 If you have gnuplot installed, you can also generate some pretty graphs for any
-active fuzzing task using afl-plot.sh.
+active fuzzing task using 'afl-plot'. For an example of how this looks like,
+see:
+
+  http://lcamtuf.coredump.cx/afl/plot/
 
 7) Parallelized fuzzing
 -----------------------
@@ -221,13 +237,48 @@ active fuzzing task using afl-plot.sh.
 For tips on how to fuzz a common target on multiple cores or multiple networked
 machines, please refer to parallel_fuzzing.txt.
 
-8) Crash exploration
+8) Fuzzer dictionaries
+----------------------
+
+By default, afl-fuzz mutation engine is optimized for compact data formats -
+say, images, multimedia, compressed data, regular expression syntax, or shell
+scripts. It is somewhat less suited for languages with particularly verbose and
+redundant verbiage - notably including HTML, SQL, or JavaScript.
+
+To avoid the hassle of building syntax-aware tools, afl-fuzz provides a way to
+seed the fuzzing process with an optional dictionary of language keywords,
+magic headers, or other special tokens associated with the targeted data type
+- and use that to reconstruct the underlying grammar on the go:
+
+  http://lcamtuf.blogspot.com/2015/01/afl-fuzz-making-up-grammar-with.html
+
+To use this feature, place the tokens in a new directory, one per file; and then
+point the fuzzer to that directory via the -x option in the command line. One
+good example can be found in testcases/_extras/xml/; another useful reference
+point would be testcases/_extras/png/.
+
+Note that the tokens should be *extremely* short and correspond to the basic
+syntax units that the fuzzer will then clobber together in various ways;
+snippets between 2 and 16 bytes are the sweet spot in almost all cases.
+
+There is no way to provide more structured descriptions of the underlying
+syntax, but the fuzzer will likely figure out some of this based on the
+instrumentation feedback alone. This actually works in practice, say:
+
+  https://www.mail-archive.com/sqlite-users@sqlite.org/msg88058.html
+
+PS. Even when no explicit dictionary is given, afl-fuzz will try to extract
+existing syntax tokens in the input corpus by watching the instrumentation
+very closely during deterministic byte flips. This works for some types of
+parsers and grammars, but isn't nearly as good as the -x mode.
+
+9) Crash exploration
 --------------------
 
 The coverage-based grouping of crashes usually produces a small data set that
 can be quickly triaged manually or with a very simple GDB or Valgrind script.
 
-Of course, it's important to acknowledge that some fuzzing crashes can be
+Having said that, it's important to acknowledge that some fuzzing crashes can be
 difficult quickly evaluate for exploitability without a lot of debugging and
 code analysis work. To assist with this task, afl-fuzz supports a very unique
 "crash exploration" mode enabled with the -C flag.
@@ -247,25 +298,25 @@ beneath.
 
 Oh - for test case minimization, consider https://code.google.com/p/tmin/.
 
-9) Common-sense risks
----------------------
+10) Common-sense risks
+----------------------
 
 Please keep in mind that, similarly to many other computationally-expensive
 tasks, fuzzing may put strain on your hardware and on the OS. In particular:
 
   - Your CPU will run hot and will need adequate cooling. In most cases, if
-    cooling is insufficient or doesn't work properly, CPU speeds will be
-    automatically throttled. That said, especially when fuzzing on unsuitable
-    hardware (laptops, smartphones, etc), it's not entirely impossible for
-    something to blow up.
+    cooling is insufficient or stops working properly, CPU speeds will be
+    automatically throttled. That said, especially when fuzzing on less
+    suitable hardware (laptops, smartphones, etc), it's not entirely impossible
+    for something to blow up.
 
   - Targeted programs may end up erratically grabbing gigabytes of memory or
     filling up disk space with junk files. AFL tries to enforce basic memory
     limits, but can't prevent each and every possible mishap. The bottom line
-    is that you shouldn't be fuzzing on systems where data loss is an
-    unacceptable risk.
+    is that you shouldn't be fuzzing on systems where the prospect of data loss
+    is not an acceptable risk.
 
-  - Fuzzing involves billions of reads and writes to the disk. On modern
+  - Fuzzing involves billions of reads and writes to the filesystem. On modern
     systems, this will be usually heavily cached, resulting in fairly modest
     "physical" I/O - but there are many factors that may alter this equation.
     It is your responsibility to monitor for potential trouble; with very heavy
@@ -273,21 +324,12 @@ tasks, fuzzing may put strain on your hardware and on the OS. In particular:
 
     A good way to monitor disk I/O on Linux is the 'iostat' command:
 
-    $ iostat -d 3 -x [...optional disk ID...]
+    $ iostat -d 3 -x -k [...optional disk ID...]
 
-10) Known limitations & areas for improvement
+11) Known limitations & areas for improvement
 ---------------------------------------------
 
 Here are some of the most important caveats for AFL:
-
-  - The fuzzer is optimized for compact data formats, such as images
-    and other multimedia. It is less suited for human-readable formats with
-    particularly verbose, redundant verbiage - say, XHTML or JavaScript. In
-    such cases, template- or ABNF-based generators tend to fare better.
-
-    Of course, if you want to modify the code to generate syntax-aware
-    mutations, go ahead! You'd want to start with fuzz_one() in afl-fuzz.c.
-    Patches that refactor this code are welcome.
 
   - As with any other brute-force tool, the fuzzer offers limited coverage if
     encryption, checksums, cryptographic signatures, or compression are used to
@@ -299,7 +341,7 @@ Here are some of the most important caveats for AFL:
 
     As a simple example, a patch for libpng to bypass CRC checksums is provided 
     in experimental/libpng_no_checksum/libpng-nocrc.patch. A more complex
-    real-world harness for fwknop can be found at:
+    real-world testing harness for fwknop can be found at:
 
       https://github.com/mrash/fwknop/tree/master/test/afl
 
@@ -309,7 +351,7 @@ Here are some of the most important caveats for AFL:
 
   - Instrumentation of binary-only code is theoretically possible, but not
     supported today. Leveraging pin or DynamoRIO seems like a pretty simple
-    project.
+    project, at least in theory.
 
   - There are some unfortunate trade-offs with ASAN and 64-bit binaries. This
     isn't due to any specific fault of afl-fuzz; see notes_for_asan.txt for
@@ -340,13 +382,22 @@ bug reports, or patches from:
   - Martin Carpenter,
   - Mudge Zatko,
   - Joe Zbiciak,
-  - Ryan Govostes.
+  - Ryan Govostes,
+  - Michael Rash,
+  - William Robinet,
+  - Jonathan Gray,
+  - Filipe Cabecinhas.
 
 Thank you!
 
-12) Contact
+13) Contact
 -----------
 
 Questions? Concerns? Bug reports? The author can be usually reached at
 <lcamtuf@google.com>.
 
+There is also a mailing list for the project; to join, send a mail to
+<afl-users+subscribe@googlegroups.com>. Or, if you prefer to browse
+archives first, try:
+
+https://groups.google.com/group/afl-users

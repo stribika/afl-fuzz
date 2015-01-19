@@ -1,7 +1,286 @@
+Want to stay in the loop on major new features? Join our mailing list by
+sending a mail to <afl-users+subscribe@googlegroups.com>.
 
-* NOTE: The lowest currently recommended version is 0.78b. If that version
-* works for you, you can keep using it. If you have an older release, it is
-* strongly advisable to upgrade.
+Not sure if you should upgrade? The lowest currently recommended version
+is 1.10b. If you're stuck on an earlier release, it's strongly advisable
+to download a newer one.
+
+--------------
+Version 1.13b:
+--------------
+
+  - Improved the performance of minimize_corpus.sh by switching to a
+    sort-based approach.
+
+  - Made several minor revisions to the docs.
+
+--------------
+Version 1.12b:
+--------------
+
+  - Made an improvement to dictionary generation to avoid runs of identical
+    bytes.
+
+  - Added havoc cycle scaling to help with slow binaries in -d mode. Based on
+    a thread with Sami Liedes.
+
+  - Added AFL_SYNC_FIRST for afl-fuzz. This is useful for those who obsess
+    over stats, no special purpose otherwise.
+
+  - Switched to more robust box drawing codes, suggested by Jakub Wilk.
+
+  - Created faster 64-bit variants of several critical-path bitmap functions
+    (sorry, no difference on 32 bits).
+
+  - Fixed moar typos, as reported by Jakub Wilk.
+
+--------------
+Version 1.11b:
+--------------
+
+  - Added a bit more info about dictionary strategies to the status screen.
+
+--------------
+Version 1.10b:
+--------------
+
+  - Revised the dictionary behavior to use insertion and overwrite in
+    deterministic steps, rather than just the latter. This improves coverage
+    with SQL and the like.
+
+  - Added a mention of "*" in status_screen.txt, as suggested by Jakub Wilk.
+
+--------------
+Version 1.09b:
+--------------
+
+  - Corrected a cosmetic problem with 'extras' stage count not always being
+    accurate in the stage yields view.
+
+  - Fixed a typo reported by Jakub Wilk and made some minor documentation
+    improvements.
+
+--------------
+Version 1.08b:
+--------------
+
+  - Fixed a div-by-zero bug in the newly-added code when using a dictionary.
+
+--------------
+Version 1.07b:
+--------------
+
+  - Added code that automatically finds and extracts syntax tokens from the
+    input corpus.
+
+  - Fixed a problem with ld dead-code removal option on MacOS X, reported
+    by Filipe Cabecinhas.
+
+  - Corrected minor typos spotted by Jakub Wilk.
+
+  - Added a couple of more exotic archive format samples.
+
+--------------
+Version 1.06b:
+--------------
+
+  - Switched to slightly more accurate (if still not very helpful) reporting
+    of short read and short write errors. These theoretically shouldn't happen
+    unless you kill the forkserver or run out of disk space. Suggested by
+    Jakub Wilk.
+
+  - Revamped some of the allocator and debug code, adding comments and
+    cleaning up other mess.
+
+  - Tweaked the odds of fuzzing non-favored test cases to make sure that
+    baseline coverage of all inputs is reached sooner.
+
+--------------
+Version 1.05b:
+--------------
+
+  - Added a dictionary for WebP.
+
+  - Made some additional performance improvements to minimize_corpus.sh,
+    getting deeper into the bash woods.
+
+--------------
+Version 1.04b:
+--------------
+
+  - Made substantial performance improvements to minimize_corpus.sh with
+    large datasets, albeit at the expense of having to switch back to bash
+    (other shells may have limits on array sizes, etc).
+
+  - Tweaked afl-showmap to support the format used by the new script.
+
+--------------
+Version 1.03b:
+--------------
+
+  - Added code to skip README.txt in the input directory to make the crash
+    exploration mode work better. Suggested by Jakub Wilk.
+
+  - Added a dictionary for SQLite.
+
+--------------
+Version 1.02b:
+--------------
+
+  - Reverted the ./ search path in minimize_corpus.sh because people did
+    not like it.
+
+  - Added very explicit warnings not to run various shell scripts that
+    read or write to /tmp/ (since this is generally a pretty bad idea on
+    multi-user systems).
+
+  - Added a check for /tmp binaries and -f locations in afl-fuzz.
+
+--------------
+Version 1.01b:
+--------------
+
+  - Added dictionaries for XML and GIF.
+
+--------------
+Version 1.00b:
+--------------
+
+  - Slightly improved the performance of minimize_corpus.sh, especially on
+    Linux.
+
+  - Made a couple of improvements to calibration timeouts for resumed scans.
+
+--------------
+Version 0.99b:
+--------------
+
+  - Fixed minimize_corpus.sh to work with dash, as suggested by Jakub Wilk.
+
+  - Modified minimize_corpus.sh to try locate afl-showmap in $PATH and ./.
+    The first part requested by Jakub Wilk.
+
+  - Added support for afl-as --version, as required by one funky build
+    script. Reported by William Robinet.
+
+--------------
+Version 0.98b:
+--------------
+
+  - Added a dictionary for TIFF.
+
+  - Fixed another cosmetic snafu with stage exec counts for -x.
+
+  - Switched afl-plot to /bin/sh, since it seems bashism-free. Also tried
+    to remove any obvious bashisms from other experimental/ scripts,
+    most notably including minimize_corpus.sh and triage_crashes.sh.
+    Requested by Jonathan Gray.
+
+--------------
+Version 0.97b:
+--------------
+
+  - Fixed cosmetic issues around the naming of -x strategy files.
+
+  - Added a dictionary for JPEG.
+
+  - Fixed a very rare glitch when running instrumenting 64-bit code that makes
+    heavy use of xmm registers that are also touched by glibc.
+
+--------------
+Version 0.96b:
+--------------
+
+  - Added support for extra dictionaries, provided testcases/_extras/png/
+    as a demo.
+
+  - Fixed a minor bug in number formatting routines used by the UI.
+
+  - Added several additional PNG test cases that are relatively unlikely
+    to be hit by chance.
+
+  - Fixed afl-plot syntax for gnuplot 5.x. Reported by David Necas.
+
+--------------
+Version 0.95b:
+--------------
+
+  - Cleaned up the OSX ReportCrash code. Thanks to Tobias Ospelt for help.
+
+  - Added some extra tips for AFL_NO_FORKSERVER on OSX.
+
+  - Refreshed the INSTALL file.
+
+--------------
+Version 0.94b:
+--------------
+
+  - Added in-place resume (-i-) to address a common user complaint.
+
+  - Added an awful workaround for ReportCrash on MacOS X. Problem
+    spotted by Joseph Gentle.
+
+--------------
+Version 0.93b:
+--------------
+
+  - Fixed the link() workaround, as reported by Jakub Wilk.
+
+--------------
+Version 0.92b:
+--------------
+
+  - Added support for reading test cases from another filesystem.
+    Requested by Jakub Wilk.
+
+  - Added pointers to the mailing list.
+
+  - Added a sample PDF document.
+
+--------------
+Version 0.91b:
+--------------
+
+  - Refactored minimize_corpus.sh to make it a bit more user-friendly and to
+    select for smallest files, not largest bitmaps. Offers a modest corpus
+    size improvement in most cases.
+
+  - Slightly improved the performance of splicing code.
+
+--------------
+Version 0.90b:
+--------------
+
+  - Moved to an algorithm where paths are marked as preferred primarily based
+    on size and speed, rather than bitmap coverage. This should offer
+    noticeable performance gains in many use cases.
+
+  - Refactored path calibration code; calibration now takes place as soon as a
+    test case is discovered, to facilitate better prioritization decisions later
+    on.
+
+  - Changed the way of marking variable paths to avoid .state metadata
+    inconsistencies.
+
+  - Made sure that calibration routines always create a new test case to avoid
+    hypothetical problems with utilities that modify the input file.
+
+  - Added bitmap saturation to fuzzer stats and plot data.
+
+  - Added a testcase for JPEG XR.
+
+  - Added a tty check for the colors warning in Makefile, to keep distro build
+    logs tidy. Suggested by Jakub Wilk.
+
+--------------
+Version 0.89b:
+--------------
+
+  - Renamed afl-plot.sh to afl-plot, as requested by Padraig Brady.
+
+  - Improved the compatibility of afl-plot with older versions of gnuplot.
+
+  - Added banner information to fuzzer_stats, populated it to afl-plot.
 
 --------------
 Version 0.88b:

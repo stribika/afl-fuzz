@@ -104,6 +104,9 @@ This box tells you how far along the fuzzer is with the current queue cycle: the
 ID of the test case it is currently working on, plus the number of inputs it
 decided to ditch because they were persistently timing out.
 
+The "*" suffix sometimes shown in the first line means that the currently
+processed path is not favored (as discussed section 6).
+
 If you feel that the fuzzer is progressing too slowly, see the note about the -d
 option in section 2 of this doc.
 
@@ -164,7 +167,8 @@ now. It tells you about the current stage, which can be any of:
     a millisecond or so =)
 
   - calibration - a pre-fuzzing stage where the execution path is examined
-    to detect anomalies, establish baseline execution speed, and so on.
+    to detect anomalies, establish baseline execution speed, and so on. Executed
+    very briefly whenever a new find is being made.
 
   - trim L/S - another pre-fuzzing stage where the test case is trimmed to the
     shortest form that still produces the same execution path. The length (L)
@@ -179,6 +183,12 @@ now. It tells you about the current stage, which can be any of:
 
   - interest L/8 - deterministic value overwrite. The fuzzer has a list of known
     "interesting" 8-, 16-, and 32-bit values to try. The stepover is 8 bits.
+
+  - extras - deterministic injection of dictionary terms. This can be shown as
+    "user" or "auto", depending on whether the fuzzer is using an user-supplied
+    dictionary (-x) or an auto-detected one; and "over" or "insert", depending
+    on whether the dictionary words overwrite existing data or are inserted by
+    offsetting the remaining data to accommodate their length.
 
   - havoc - a sort-of-fixed-length cycle with stacked random tweaks. The
     operations attempted during this stage include bit flips, overwrites with
@@ -230,6 +240,7 @@ additional, more detailed counters for crashes and hangs.
   |  byte flips : 0/36.2k, 4/35.7k, 7/34.6k             |
   | arithmetics : 53/2.54M, 0/537k, 0/55.2k             |
   |  known ints : 8/322k, 12/1.32M, 10/1.70M            |
+  |  dictionary : 9/52k, 1/53k, 1/24k                   |
   |       havoc : 1903/20.0M, 0/0                       |
   |        trim : 139.4 kB/9201 (20.31% gain)           |
   +-----------------------------------------------------+
@@ -292,9 +303,16 @@ explanations for variable behavior of the tested program:
     write to stdout or to /dev/null to avoid surprises (and disable the
     creation of temporary files, if applicable).
 
+  - Hitting functionality that is actually designed to behave randomly. For
+    example, when fuzzing sqlite, the fuzzer will hit variable behavior with:
+
+    select random();
+
 Less likely causes may include running out of disk space, SHM handles, or other
-globally limited resources; or the program being intentionally designed to
-behave randomly.
+globally limited resources.
+
+The paths where variable behavior is detected are marked with with a matching
+entry in the <out_dir>/.state/variable_behavior/ directory.
 
 9) CPU load
 -----------
@@ -336,8 +354,8 @@ directory. This includes:
   - paths_imported - number of entries imported from other instances
   - max_depth      - number of levels in the generated data set
   - cur_path       - currently processed entry number
-  - pending_favs   - number of entries still waiting to be fuzzed
-  - pending_total  - number of favored entries waiting to be fuzzed
+  - pending_favs   - number of favored entries still waiting to be fuzzed
+  - pending_total  - number of all entries waiting to be fuzzed
   - variable_paths - number of test cases showing variable behavior
   - unique_crashes - number of unique crashes recorded
   - unique_hangs   - number of unique hangs encountered
@@ -346,4 +364,4 @@ Most of these map directly to the UI elements discussed earlier on.
 
 On top of that, you can also find an entry called 'plot_data', containing a
 plottable history for most of these fields. If you have gnuplot installed, you
-can turn this into a nice progress report with the included 'afl-plot.sh' tool.
+can turn this into a nice progress report with the included 'afl-plot' tool.

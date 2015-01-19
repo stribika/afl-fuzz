@@ -6,11 +6,6 @@ TODO
 
 Here's the list of stuff I'm currently thinking about:
 
-  - Better distribution of work between the master instance and slaves
-    when doing parallel fuzzing.
-
-  - Possible inclusion of 8192 as an "interesting" integer (needs testing).
-
   - Investigation of x86 hardware branch tracing (Via the Linux perf API?)
     as an alternative to injected instrumentation.
 
