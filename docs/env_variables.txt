@@ -2,17 +2,15 @@
 Environmental variables
 =======================
 
-  (See README for the general instruction manual)
-
-Several components of American Fuzzy Lop make use of environmental variables
-to implement features that may be (rarely) useful for power users or may come
-handy in scripting environments.
+  This document discusses the environment variables used by American Fuzzy Lop
+  to expose various exotic functions that may be (rarely) useful for power
+  users. See README for the general instruction manual.
 
 1) Settings for afl-gcc, afl-clang, and afl-as
 ----------------------------------------------
 
-  - Setting AFL_QUIET will prevent afl-cc and afl-as banners from being
-    displayed during compilation, in case you find them distracting.
+Because they can't directly accept command-line options, the compile-time
+tools make fairly broad use of environmental variables:
 
   - Setting AFL_HARDEN automatically adds code hardening options when invoking
     the downstream compiler. This currently includes -D_FORTIFY_SOURCE=2 and
@@ -26,18 +24,14 @@ handy in scripting environments.
     compiler supports that. Note that fuzzing with ASAN is problematic - see
     notes_for_asan.txt.
 
-  - Setting AFL_USE_MSAN has a similar effect, but enables MSAN. Note that ASAN
-    and MSAN can't be used at the same time. The caveats for MSAN are similar
-    to the situation with ASAN.
+    (You can also enable MSAN via AFL_USE_MSAN; ASAN and MSAN come with the
+    same gotchas; the modes are mutually exclusive.)
 
-  - Setting AFL_CC and AFL_CXX lets you use alternate downstream compilers,
-    rather than the default 'clang' or 'gcc' binary in your $PATH.
+  - Setting AFL_CC, AFL_CXX, and AFL_AS lets you use alternate downstream
+    compilation tools, rather than the default 'clang', 'gcc', or 'as' binaries
+    in your $PATH.
 
-  - Setting AFL_AS has a similar effect, but is used for selecting the
-    path for the downstream GNU assembler invoked when afl-as is done.
-
-  - AFL_PATH can be used to point to an alternate location of afl-as.
-
+  - AFL_PATH can be used to point afl-gcc to an alternate location of afl-as.
     One possible use of this is experimental/clang_asm_normalize/, which lets
     you instrument hand-written assembly when compiling clang code by plugging
     a normalizer into the chain. (There is no equivalent feature for GCC.)
@@ -45,7 +39,7 @@ handy in scripting environments.
   - Setting AFL_INST_RATIO to a percentage between 0 and 100% controls the
     probability of instrumenting every branch. This is (very rarely) useful
     when dealing with exceptionally complex programs that saturate the output
-    bitmap. 
+    bitmap. Examples include v8, ffmpeg, and perl.
 
     (If this ever happens, afl-fuzz will warn you ahead of the time by
     displaying the "bitmap density" field in fiery red.)
@@ -60,24 +54,14 @@ handy in scripting environments.
     mkdir assembly_here
     TMPDIR=$PWD/assembly_here AFL_KEEP_ASSEMBLY=1 make clean all
 
-2) Settings for afl-showmap
----------------------------
+  - Setting AFL_QUIET will prevent afl-cc and afl-as banners from being
+    displayed during compilation, in case you find them distracting.
 
-  - Setting AFL_QUIET inhibits the banner and other non-essential messages
-    from the tool.
-
-  - Setting AFL_SINK_OUTPUT redirects all output from the tested program to
-    /dev/null, so that all you see is a list of tuples recorded by the
-    instrumentation. Very useful for test case de-duplication scripts.
-
-  - Setting AFL_EDGES_ONLY makes the tool hide the edge hit count information.
-
-3) Settings for afl-fuzz
+2) Settings for afl-fuzz
 ------------------------
 
-  - Setting AFL_SKIP_CHECKS skips the checks to detect instrumented binaries
-    and shell scripts. This is useful mostly if you develop your own
-    instrumentation (e.g., for interpreted languages or binary-only code).
+The main fuzzer binary accepts several options that disable a couple of sanity
+checks or alter some of the more exotic semantics of the tool:
 
   - Setting AFL_SKIP_CPUFREQ skips the check for CPU scaling policy. This is
     useful if you can't change the defaults (e.g., no root access to the
@@ -89,22 +73,54 @@ handy in scripting environments.
     things when initializing before the instrumentation has a chance to run.
 
     Note that this setting inhibits some of the user-friendly diagnostics
-    normally done when starting up the forkserver.
+    normally done when starting up the forkserver and causes a pretty
+    significant performance drop.
+
+  - Setting AFL_NO_VAR_CHECK skips the detection of variable test cases,
+    greatly speeding up session resumption and path discovery for complex
+    multi-threaded apps (but depriving you of a potentially useful signal
+    in more orderly programs and making timeout calculations a bit less
+    accurate).
+
+  - When developing custom instrumentation on top of afl-fuzz, you can use
+    AFL_SKIP_BIN_CHECK to inhibit the checks for non-instrumented binaries
+    and shell scripts; and AFL_DUMB_FORKSRV in conjunction with the -n
+    setting to instruct afl-fuzz to still follow the fork server protocol.
 
   - When running in the -M or -S mode, setting AFL_IMPORT_FIRST causes the
     fuzzer to import test cases from other instances before doing anything
-    else.
-
-    The default mode is to allow the instances to run on their own for a while
-    before syncing, so that they acquire some initial variability in their
-    respective input sets.
+    else. This is in contrast with the default mode, where the instances are
+    allowed to run on their own for a while before syncing, so that they
+    acquire some initial variability in their respective input sets.
 
     The benefit of AFL_IMPORT_FIRST is that it makes the "own finds" counter
     in the UI more accurately reflect the number of findings made by the
     instance that the remaining ones did not already have.
 
-  - By default, LD_BIND_NOW is set to 1 to speed up fuzzing, but you can
-    override it. I don't think there's any reason to.
+  - The CPU widget shown at the bottom of the screen is fairly simplistic and
+    may complain of high load prematurely, especially on systems with low core
+    counts. To avoid the alarming red color, you can set AFL_NO_CPU_RED.
+
+3) Settings for afl-cmin
+------------------------
+
+The corpus minimization script offers very little customization:
+
+  - Setting AFL_PATH offers a way to specify the location of afl-showmap.
+
+  - AFL_KEEP_TRACES makes the tool keep traces and other metadata used for
+    minimization and normally deleted at exit. The files can be found in the
+    <out_dir>/.traces/*.
+
+4) Third-party variables set by afl-fuzz & other tools
+------------------------------------------------------
+
+Several variables are not directly interpreted by afl-fuzz, but are set to
+optimal values if not already present in the environment:
+
+  - By default, LD_BIND_NOW is set to 1 to speed up fuzzing by forcing the
+    linker to do all the work before the fork server kicks in. You can
+    override the value, but this is almost certainly pointless.
 
   - By default, ASAN_OPTIONS are set to:
 
@@ -121,4 +137,5 @@ handy in scripting environments.
     exit_code=86
     msan_track_origins=0
 
-    Be sure to include the first one when customizing anything.
+    Be sure to include the first one when customizing anything, since MSAN
+    doesn't call abort() on error, and we need a way to detect faults.

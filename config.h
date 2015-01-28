@@ -4,7 +4,7 @@
 
    Written and maintained by Michal Zalewski <lcamtuf@google.com>
 
-   Copyright 2013, 2014 Google Inc. All rights reserved.
+   Copyright 2013, 2014, 2015 Google Inc. All rights reserved.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -49,7 +49,11 @@
    cases that show variable behavior): */
 
 #define CAL_CYCLES          10
-#define CAL_CYCLES_LONG     50
+#define CAL_CYCLES_LONG     40
+
+/* The same, but when AFL_NO_VAR_CHECK is set in the environment: */
+
+#define CAL_CYCLES_NO_VAR   4
 
 /* Number of subsequent hangs before abandoning an input file: */
 
@@ -106,7 +110,7 @@
 
 #define SPLICE_HAVOC        500
 
-/* Maximum value for integer addition / subtraction stages: */
+/* Maximum offset for integer addition / subtraction stages: */
 
 #define ARITH_MAX           35
 
@@ -120,6 +124,10 @@
 /* Maximum size of input file, in bytes (keep under 100MB): */
 
 #define MAX_FILE            (1 * 1024 * 1024)
+
+/* The same, for the test case minimizer: */
+
+#define TMIN_MAX_FILE       (10 * 1024 * 1024)
 
 /* Maximum dictionary token size (-x), in bytes: */
 
@@ -156,7 +164,7 @@
 
 #define AVG_SMOOTHING       25
 
-/* Sync interval (havoc cycles): */
+/* Sync interval (every n havoc cycles): */
 
 #define SYNC_INTERVAL       5
 
@@ -218,9 +226,12 @@
 #define CLANG_ENV_VAR       "__AFL_CLANG_MODE"
 #define AS_LOOP_ENV_VAR     "__AFL_AS_LOOPCHECK"
 
-/* Distinctive exit code used to indicate failed execution: */
+/* Distinctive bitmap signature used to indicate failed execution: */
 
-#define EXEC_FAIL           85
+#define EXEC_FAIL_SIG       0xfee1dead
+
+/* Distinctive exit code used to indicate MSAN trip condition: */
+
 #define MSAN_ERROR          86
 
 /* Designated file desciptors for forkserver commands (the application will
@@ -240,6 +251,10 @@
 #define CAL_TMOUT_PERC      125
 #define CAL_TMOUT_ADD       50
 
+/* Number of chances to calibrate a case before giving up: */
+
+#define CAL_CHANCES         3
+
 /* Map size for the traced binary (2^MAP_SIZE_POW2). Must be greater than
    2; you probably want to keep it under 18 or so for performance reasons
    (adjusting AFL_INST_RATIO when compiling is probably a better way to solve
@@ -252,6 +267,15 @@
 /* Maximum allocator request size (keep well under INT_MAX): */
 
 #define MAX_ALLOC           0x40000000
+
+/* A made-up hashing seed: */
+
+#define HASH_CONST          0xa5b35705
+
+/* Constants for afl-gotcpu to control busy loop timing: */
+
+#define  CTEST_TARGET_MS    5000
+#define  CTEST_BUSY_CYCLES  (10 * 1000 * 1000)
 
 /* Uncomment this to use inferior line-coverage-based instrumentation. Note
    that you need to recompile the target binary for this to have any effect: */

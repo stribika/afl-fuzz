@@ -1,9 +1,226 @@
+=========
+ChangeLog
+=========
+
+  This is the list of all noteworthy changes made in every public release of
+  the tool. See README for the general instruction manual.
+
+----------------
+Staying informed
+----------------
+
 Want to stay in the loop on major new features? Join our mailing list by
 sending a mail to <afl-users+subscribe@googlegroups.com>.
 
 Not sure if you should upgrade? The lowest currently recommended version
 is 1.10b. If you're stuck on an earlier release, it's strongly advisable
-to download a newer one.
+to get on with the times.
+
+--------------
+Version 1.30b:
+--------------
+
+  - Added -s (summary) option to afl-whatsup. Suggested by Jodie Cunningham.
+
+  - Added a sanity check in afl-tmin to detect minimization to zero len or
+    excess hangs.
+
+  - Fixed alphabet size counter in afl-tmin.
+
+  - Slightly improved the handling of -B in afl-fuzz.
+
+  - Fixed process crash messages with -m none.
+
+--------------
+Version 1.29b:
+--------------
+
+  - Improved the naming of test cases when orig: is alredy present in the file
+    name.
+
+  - Made substantial improvements to technical_details.txt.
+
+--------------
+Version 1.28b:
+--------------
+
+  - Made a minor tweak to the instrumentation to preserve the directionality
+    of tuples (i.e., A -> B != B -> A) and to maintain the identity of tight
+    loops (A -> A). You need to recompile targeted binaries to leverage this.
+
+  - Cleaned up some of the afl-whatsup stats.
+
+  - Added several sanity checks to afl-cmin.
+
+--------------
+Version 1.27b:
+--------------
+
+  - Made afl-tmin recursive. Thanks to Hanno Boeck for the tip.
+
+  - Added docs/technical_details.txt.
+
+  - Changed afl-showmap search strategy in afl-cmap to just look into the
+    same place that afl-cmin is executed from. Thanks to Jakub Wilk.
+
+  - Removed current_todo.txt and cleaned up the remaining docs.
+
+--------------
+Version 1.26b:
+--------------
+
+  - Added total execs/sec stat for afl-whatsup.
+
+  - afl-cmin now auto-selects between cp or ln. Based on feedback from
+    Even Huus.
+
+  - Fixed a typo. Thanks to Jakub Wilk.
+
+  - Made afl-gotcpu a bit more accurate by using getrusage instead of
+    times. Thanks to Jakub Wilk.
+
+  - Fixed a memory limit issue during the build process on NetBSD-current.
+    Reported by Thomas Klausner.
+
+--------------
+Version 1.25b:
+--------------
+
+  - Introduced afl-whatsup, a simple tool for querying the status of
+    local synced instances of afl-fuzz.
+
+  - Added -x compiler to clang options on Darwin. Suggested by Filipe
+    Cabecinhas.
+
+  - Improved exit codes for afl-gotcpu.
+
+  - Improved the checks for -m and -t values in afl-cmin. Bug report
+    from Evan Huus.
+
+--------------
+Version 1.24b:
+--------------
+
+  - Introduced afl-getcpu, an experimental tool to empirically measure
+    CPU preemption rates. Thanks to Jakub Wilk for the idea.
+
+--------------
+Version 1.23b:
+--------------
+
+  - Reverted one change to afl-cmin that actually made it slower.
+
+--------------
+Version 1.22b:
+--------------
+
+  - Reworked afl-showmap.c to support normal options, including -o, -q,
+    -e. Also added support for timeouts and memory limits.
+
+  - Made changes to afl-cmin and other scripts to accommodate the new
+    semantics.
+
+  - Officially retired AFL_EDGES_ONLY.
+
+  - Fixed another typo in afl-tmin, courtesy of Jakub Wilk.
+
+--------------
+Version 1.21b:
+--------------
+
+  - Graduated minimize_corpus.sh to afl-cmin. It is now a first-class
+    utility bundled with the fuzzer. 
+
+  - Made significant improvements to afl-cmin to make it faster, more
+    robust, and more versatile.
+
+  - Refactored some of afl-tmin code to make it a bit more readable.
+
+  - Made assorted changes to the doc to document afl-cmin and other stuff.
+
+--------------
+Version 1.20b:
+--------------
+
+  - Added AFL_DUMB_FORKSRV, as requested by Jakub Wilk. This works only
+    in -n mode and allows afl-fuzz to run with "dummy" fork servers that
+    don't output any instrumentation, but follow the same protocol.
+
+  - Renamed AFL_SKIP_CHECKS to AFL_SKIP_BIN_CHECK to make it at least
+    somewhat descriptive.
+
+  - Switched to using clang as the default assembler on MacOS X to work
+    around Xcode issues with newer builds of clang. Testing and patch by
+    Nico Weber.
+
+  - Fixed a typo (via Jakub Wilk).
+
+--------------
+Version 1.19b:
+--------------
+
+  - Improved exec failure detection in afl-fuzz and afl-showmap.
+
+  - Improved Ctrl-C handling in afl-showmap.
+
+  - Added afl-tmin, a handy instrumentation-enabled minimizer.
+
+--------------
+Version 1.18b:
+--------------
+
+  - Fixed a serious but short-lived bug in the resumption behavior introduced
+    in version 1.16b.
+
+  - Added -t nn+ mode for soft-skipping timing-out paths.
+
+--------------
+Version 1.17b:
+--------------
+
+  - Fixed a compiler warning introduced in 1.16b for newer versions of GCC.
+    Thanks to Jakub Wilk and Ilfak Guilfanov.
+
+  - Improved the consistency of saving fuzzer_stats, bitmap info, and
+    auto-dictionaries when aborting fuzzing sessions.
+
+  - Made several noticeable performance improvements to deterministic arith
+    and known int steps.
+
+--------------
+Version 1.16b:
+--------------
+
+  - Added a bit of code to make resumption pick up from the last known
+    offset in the queue, rather than always rewinding to the start. Suggested
+    by Jakub Wilk.
+
+  - Switched to tighter timeout control for slow programs (3x rather than
+    5x average exec speed at init).
+
+--------------
+Version 1.15b:
+--------------
+
+  - Added support for AFL_NO_VAR_CHECK to speed up resumption and inhibit
+    variable path warnings for some programs.
+
+  - Made the trimmer run even for variable paths, since there is no special
+    harm in doing so and it can be very beneficial if the trimming still
+    pans out.
+
+  - Made the UI a bit more descriptive by adding "n/a" instead of "0" in a
+    couple of corner cases.
+
+--------------
+Version 1.14b:
+--------------
+
+  - Added a (partial) dictionary for JavaScript.
+
+  - Added AFL_NO_CPU_RED, as suggested by Jakub Wilk.
+
+  - Tweaked the havoc scaling logic added in 1.12b.
 
 --------------
 Version 1.13b:

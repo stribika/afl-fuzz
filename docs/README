@@ -2,16 +2,16 @@
 american fuzzy lop
 ==================
 
-Written and maintained by Michal Zalewski <lcamtuf@google.com>
+  Written and maintained by Michal Zalewski <lcamtuf@google.com>
 
-Copyright 2013, 2014 Google Inc. All rights reserved.
-Released under terms and conditions of Apache License, Version 2.0.
+  Copyright 2013, 2014, 2015 Google Inc. All rights reserved.
+  Released under terms and conditions of Apache License, Version 2.0.
 
-For new versions and additional information, check out:
-http://lcamtuf.coredump.cx/afl/
+  For new versions and additional information, check out:
+  http://lcamtuf.coredump.cx/afl/
 
-To compare notes with other users or get notified about major new features,
-send a mail to <afl-users+subscribe@googlegroups.com>.
+  To compare notes with other users or get notified about major new features,
+  send a mail to <afl-users+subscribe@googlegroups.com>.
 
 1) Challenges of guided fuzzing
 -------------------------------
@@ -145,9 +145,8 @@ You can find quite a few good examples of starting files in the testcases/
 subdirectory that comes with this tool.
 
 If a large corpus of data is available for screening, you may want to use the
-afl-showmap utility to compare instrumentation output and reject redundant
-files. See experimental/minimization_script/ for an example of how to implement
-this.
+afl-cmin utility to reject redundant files; afl-showmap can be used to manually
+examine and compare execution traces, too.
 
 5) Fuzzing instrumented binaries
 --------------------------------
@@ -195,6 +194,11 @@ in real time:
   - queue/   - test cases for every distinctive execution path, plus all the
                starting files given by the user. This is, in effect, the
                synthesized corpus mentioned in section 2.
+
+               If desired, you can use afl-cmin to shrink the corpus to a much
+               smaller size. This works by throwing away earlier inputs that
+               used to trigger unique behaviors in the past, but have been made
+               obsolete by better finds made by afl-fuzz later on.
 
   - hangs/   - unique test cases that cause the tested program to time out. Note
                that the default timeouts are fairly aggressive (set at 5x the
@@ -277,6 +281,8 @@ parsers and grammars, but isn't nearly as good as the -x mode.
 
 The coverage-based grouping of crashes usually produces a small data set that
 can be quickly triaged manually or with a very simple GDB or Valgrind script.
+Every crash is also traceable to its parent, non-crashing test case in the
+queue, making it easier to diagnose faults.
 
 Having said that, it's important to acknowledge that some fuzzing crashes can be
 difficult quickly evaluate for exploitability without a lot of debugging and
@@ -296,12 +302,23 @@ what degree of control the attacker has over the faulting address, or whether
 it is possible to get past an initial out-of-bounds read - and see what lies
 beneath.
 
-Oh - for test case minimization, consider https://code.google.com/p/tmin/.
+Oh, one more thing: for test case minimization, give afl-tmin a try. The tool
+can be operated in a very simple way:
+
+$ ./afl-tmin -i test_case -o minimized_result -- /path/to/program [...]
+
+The tool works with crashing and non-crashing test cases alike. In the crash
+mode, it will happily accept instrumented and non-instrumented binaries. In the
+non-crashing mode, the minimizer relies on standard AFL instrumentation to make
+the file simpler without altering the execution path.
+
+The minimizer accepts the -m, -t, -f and @@ syntax in a manner compatible with
+afl-fuzz.
 
 10) Common-sense risks
 ----------------------
 
-Please keep in mind that, similarly to many other computationally-expensive
+Please keep in mind that, similarly to many other computationally-intensive
 tasks, fuzzing may put strain on your hardware and on the OS. In particular:
 
   - Your CPU will run hot and will need adequate cooling. In most cases, if
@@ -386,7 +403,9 @@ bug reports, or patches from:
   - Michael Rash,
   - William Robinet,
   - Jonathan Gray,
-  - Filipe Cabecinhas.
+  - Filipe Cabecinhas,
+  - Nico Weber,
+  - Jodie Cunningham.
 
 Thank you!
 
