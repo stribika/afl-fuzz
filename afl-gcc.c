@@ -4,7 +4,7 @@
 
    Written and maintained by Michal Zalewski <lcamtuf@google.com>
 
-   Copyright 2013, 2014 Google Inc. All rights reserved.
+   Copyright 2013, 2014, 2015 Google Inc. All rights reserved.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -276,8 +276,7 @@ int main(int argc, char** argv) {
 
   if (isatty(2) && !getenv("AFL_QUIET")) {
 
-    SAYF(cCYA "afl-cc " cBRI VERSION cRST " (" __DATE__ " " __TIME__
-         ") by <lcamtuf@google.com>\n");
+    SAYF(cCYA "afl-cc " cBRI VERSION cRST " by <lcamtuf@google.com>\n");
 
   } else be_quiet = 1;
 
@@ -288,11 +287,12 @@ int main(int argc, char** argv) {
          "for gcc or clang, letting you recompile third-party code with the required\n"
          "runtime instrumentation. A common use pattern would be one of the following:\n\n"
 
-         "  CC=/usr/local/bin/afl-gcc ./configure\n"
-         "  CXX=/usr/local/bin/afl-g++ ./configure\n\n"
+         "  CC=%s/afl-gcc ./configure\n"
+         "  CXX=%s/afl-g++ ./configure\n\n"
 
          "You can specify custom next-stage toolchain via AFL_CC, AFL_CXX, and AFL_AS.\n"
-         "Setting AFL_HARDEN enables hardening optimizations in the compiled code.\n\n");
+         "Setting AFL_HARDEN enables hardening optimizations in the compiled code.\n\n",
+         BIN_PATH, BIN_PATH);
 
     exit(1);
 

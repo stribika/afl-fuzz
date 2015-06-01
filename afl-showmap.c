@@ -4,7 +4,7 @@
 
    Written and maintained by Michal Zalewski <lcamtuf@google.com>
 
-   Copyright 2015 Google Inc. All rights reserved.
+   Copyright 2013, 2014, 2015 Google Inc. All rights reserved.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -15,6 +15,9 @@
    A very simple tool that runs the targeted binary and displays
    the contents of the trace bitmap in a human-readable form. Useful in
    scripts to eliminate redundant inputs and perform other checks.
+
+   Exit code is 2 if the target program crashes; 1 if it times out or
+   there is a problem executing it; or 0 if execution is successful.
 
  */
 
@@ -36,7 +39,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 
-#include <sys/fcntl.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/shm.h>
@@ -50,6 +52,7 @@ static u8* trace_bits;                /* SHM with instrumentation bitmap   */
 
 static u8 *out_file,                  /* Trace output file                 */
           *doc_path,                  /* Path to docs                      */
+          *target_path,               /* Path to target binary             */
           *at_file;                   /* Substitution string for @@        */
 
 static u32 exec_tmout;                /* Exec timeout (ms)                 */
@@ -64,8 +67,8 @@ static u8  quiet_mode,                /* Hide non-essential messages?      */
 
 static volatile u8
            stop_soon,                 /* Ctrl-C pressed?                   */
-           child_timed_out;           /* Child timed out?                  */
-
+           child_timed_out,           /* Child timed out?                  */
+           child_crashed;             /* Child crashed?                    */
 
 /* Classify tuple counts. Instead of mapping to individual bits, as in
    afl-fuzz.c, we map to more user-friendly numbers between 1 and 8. */
@@ -151,12 +154,21 @@ static u32 write_results(void) {
   s32 fd;
   FILE* f;
   u32 i, ret = 0;
+  u8  cco = !!getenv("AFL_CMIN_CRASHES_ONLY"),
+      caa = !!getenv("AFL_CMIN_ALLOW_ANY");
 
-  unlink(out_file); /* Ignore errors */
+  if (!strncmp(out_file,"/dev/", 5)) {
 
-  fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    fd = open(out_file, O_WRONLY, 0600);
+    if (fd < 0) PFATAL("Unable to open '%s'", out_file);
 
-  if (fd < 0) PFATAL("Unable to create '%s'", out_file);
+  } else {
+
+    unlink(out_file); /* Ignore errors */
+    fd = open(out_file, O_WRONLY | O_CREAT | O_EXCL, 0600);
+    if (fd < 0) PFATAL("Unable to create '%s'", out_file);
+
+  }
 
   f = fdopen(fd, "w");
 
@@ -169,8 +181,10 @@ static u32 write_results(void) {
 
     if (cmin_mode) {
 
-      if (!child_timed_out)
-        fprintf(f, "%u%u\n", trace_bits[i], i);
+      if (child_timed_out) break;
+      if (!caa && child_crashed != cco) break;
+
+      fprintf(f, "%u%u\n", trace_bits[i], i);
 
     } else fprintf(f, "%06u:%u\n", i, trace_bits[i]);
 
@@ -203,6 +217,8 @@ static void run_target(char** argv) {
   if (!quiet_mode)
     SAYF("-- Program output begins --\n");
 
+  MEM_BARRIER();
+
   child_pid = fork();
 
   if (child_pid < 0) PFATAL("fork() failed");
@@ -213,7 +229,7 @@ static void run_target(char** argv) {
 
     if (quiet_mode) {
 
-      s32 fd = open("/dev/null", O_RDONLY);
+      s32 fd = open("/dev/null", O_RDWR);
 
       if (fd < 0 || dup2(fd, 1) < 0 || dup2(fd, 2) < 0) {
         *(u32*)trace_bits = EXEC_FAIL_SIG;
@@ -243,7 +259,7 @@ static void run_target(char** argv) {
     r.rlim_max = r.rlim_cur = 0;
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
 
-    execvp(argv[0], argv);
+    execv(target_path, argv);
 
     *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
@@ -269,6 +285,8 @@ static void run_target(char** argv) {
   it.it_value.tv_usec = 0;
   setitimer(ITIMER_REAL, &it, NULL);
 
+  MEM_BARRIER();
+
   /* Clean up bitmap, analyze exit condition, etc. */
 
   if (*(u32*)trace_bits == EXEC_FAIL_SIG)
@@ -279,16 +297,20 @@ static void run_target(char** argv) {
   if (!quiet_mode)
     SAYF("-- Program output ends --\n");
 
+  if (!child_timed_out && !stop_soon && WIFSIGNALED(status))
+    child_crashed = 1;
+
   if (!quiet_mode) {
 
     if (child_timed_out)
       SAYF(cLRD "\n+++ Program timed off +++\n" cRST);
     else if (stop_soon)
       SAYF(cLRD "\n+++ Program aborted by user +++\n" cRST);
-    else if (WIFSIGNALED(status))
+    else if (child_crashed)
       SAYF(cLRD "\n+++ Program killed by signal %u +++\n" cRST, WTERMSIG(status));
 
   }
+
 
 }
 
@@ -393,8 +415,7 @@ static void detect_file_args(char** argv) {
 
 static void show_banner(void) {
 
-  SAYF(cCYA "afl-showmap " cBRI VERSION cRST " (" __DATE__ " " __TIME__ 
-       ") by <lcamtuf@google.com>\n");
+  SAYF(cCYA "afl-showmap " cBRI VERSION cRST " by <lcamtuf@google.com>\n");
 
 }
 
@@ -413,7 +434,8 @@ static void usage(u8* argv0) {
        "Execution control settings:\n\n"
 
        "  -t msec       - timeout for each run (none)\n"
-       "  -m megs       - memory limit for child process (%u MB)\n\n"
+       "  -m megs       - memory limit for child process (%u MB)\n"
+       "  -Q            - use binary-only instrumentation (QEMU mode)\n\n"
 
        "Other settings:\n\n"
 
@@ -429,17 +451,130 @@ static void usage(u8* argv0) {
 }
 
 
+/* Find binary. */
+
+static void find_binary(u8* fname) {
+
+  u8* env_path = 0;
+  struct stat st;
+
+  if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
+
+    target_path = ck_strdup(fname);
+
+    if (stat(target_path, &st) || !S_ISREG(st.st_mode) ||
+        !(st.st_mode & 0111) || st.st_size < 4)
+      FATAL("Program '%s' not found or not executable", fname);
+
+  } else {
+
+    while (env_path) {
+
+      u8 *cur_elem, *delim = strchr(env_path, ':');
+
+      if (delim) {
+
+        cur_elem = ck_alloc(delim - env_path + 1);
+        memcpy(cur_elem, env_path, delim - env_path);
+        delim++;
+
+      } else cur_elem = ck_strdup(env_path);
+
+      env_path = delim;
+
+      if (cur_elem[0])
+        target_path = alloc_printf("%s/%s", cur_elem, fname);
+      else
+        target_path = ck_strdup(fname);
+
+      ck_free(cur_elem);
+
+      if (!stat(target_path, &st) && S_ISREG(st.st_mode) &&
+          (st.st_mode & 0111) && st.st_size >= 4) break;
+
+      ck_free(target_path);
+      target_path = 0;
+
+    }
+
+    if (!target_path) FATAL("Program '%s' not found or not executable", fname);
+
+  }
+
+}
+
+
+/* Fix up argv for QEMU. */
+
+static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+
+  char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
+  u8 *tmp, *cp, *rsl, *own_copy;
+
+  memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
+
+  new_argv[2] = target_path;
+  new_argv[1] = "--";
+
+  /* Now we need to actually find qemu for argv[0]. */
+
+  tmp = getenv("AFL_PATH");
+
+  if (tmp) {
+
+    cp = alloc_printf("%s/afl-qemu-trace", tmp);
+
+    if (access(cp, X_OK))
+      FATAL("Unable to find '%s'", tmp);
+
+    target_path = new_argv[0] = cp;
+    return new_argv;
+
+  }
+
+  own_copy = ck_strdup(own_loc);
+  rsl = strrchr(own_copy, '/');
+
+  if (rsl) {
+
+    *rsl = 0;
+
+    cp = alloc_printf("%s/afl-qemu-trace", own_copy);
+    ck_free(own_copy);
+
+    if (!access(cp, X_OK)) {
+
+      target_path = new_argv[0] = cp;
+      return new_argv;
+
+    }
+
+  } else ck_free(own_copy);
+
+  if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
+
+    target_path = new_argv[0] = BIN_PATH "/afl-qemu-trace";
+    return new_argv;
+
+  }
+
+  FATAL("Unable to find 'afl-qemu-trace'.");
+
+}
+
+
 /* Main entry point */
 
 int main(int argc, char** argv) {
 
   s32 opt;
-  u8  mem_limit_given = 0, timeout_given = 0;
+  u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0;
   u32 tcnt;
+  char** use_argv;
 
   doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
 
-  while ((opt = getopt(argc,argv,"+o:m:t:A:eqC")) > 0)
+  while ((opt = getopt(argc,argv,"+o:m:t:A:eqZQ")) > 0)
 
     switch (opt) {
 
@@ -510,7 +645,7 @@ int main(int argc, char** argv) {
         quiet_mode = 1;
         break;
 
-      case 'C':
+      case 'Z':
 
         /* This is an undocumented option to write data in the syntax expected
            by afl-cmin. Nobody else should have any use for this. */
@@ -523,6 +658,14 @@ int main(int argc, char** argv) {
 
         /* Another afl-cmin specific feature. */
         at_file = optarg;
+        break;
+
+      case 'Q':
+
+        if (qemu_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
+
+        qemu_mode = 1;
         break;
 
       default:
@@ -538,14 +681,21 @@ int main(int argc, char** argv) {
 
   set_up_environment();
 
+  find_binary(argv[optind]);
+
   if (!quiet_mode) {
     show_banner();
-    ACTF("Executing '%s'...\n", argv[0]);
+    ACTF("Executing '%s'...\n", target_path);
   }
 
   detect_file_args(argv + optind);
 
-  run_target(argv + optind);
+  if (qemu_mode)
+    use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
+  else
+    use_argv = argv + optind;
+
+  run_target(use_argv);
 
   tcnt = write_results();
 
@@ -556,7 +706,7 @@ int main(int argc, char** argv) {
 
   }
 
-  exit(0);
+  exit(child_crashed * 2 + child_timed_out);
 
 }
 

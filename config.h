@@ -37,6 +37,10 @@
 
 #define EXEC_TIMEOUT        1000
 
+/* Timeout rounding factor when auto-scaling (milliseconds): */
+
+#define EXEC_TM_ROUND       20
+
 /* Default memory limit for child process (MB): */
 
 #ifndef __x86_64__ 
@@ -44,6 +48,10 @@
 #else
 #  define MEM_LIMIT         50
 #endif /* ^!__x86_64__ */
+
+/* Default memory limit when running in QEMU mode (MB): */
+
+#define MEM_LIMIT_QEMU      200
 
 /* Number of calibration cycles per every new test case (and for test
    cases that show variable behavior): */
@@ -80,16 +88,17 @@
 /* Maximum stacking for havoc-stage tweaks. The actual value is calculated
    like this: 
 
-   n = random between 0 and HAVOC_STACK_POW2
+   n = random between 1 and HAVOC_STACK_POW2
    stacking = 2^n
 
-   In other words, the default (n = 7) produces 1, 2, 4, 8, 16, 32, 64, or
+   In other words, the default (n = 7) produces 2, 4, 8, 16, 32, 64, or
    128 stacked tweaks: */
 
 #define HAVOC_STACK_POW2    7
 
 /* Caps on block sizes for cloning and deletion operations. Each of these
-   ranges has a 33% probability of getting picked: */
+   ranges has a 33% probability of getting picked, except for the first
+   two cycles where smaller blocks are favored: */
 
 #define HAVOC_BLK_SMALL     32
 #define HAVOC_BLK_MEDIUM    128
@@ -129,6 +138,11 @@
 
 #define TMIN_MAX_FILE       (10 * 1024 * 1024)
 
+/* Block normalization steps for afl-tmin: */
+
+#define TMIN_SET_MIN_SIZE   4
+#define TMIN_SET_STEPS      128
+
 /* Maximum dictionary token size (-x), in bytes: */
 
 #define MAX_DICT_FILE       128
@@ -151,9 +165,24 @@
 #define USE_AUTO_EXTRAS     50
 #define MAX_AUTO_EXTRAS     (USE_AUTO_EXTRAS * 10)
 
+/* Scaling factor for the effector map used to skip some of the more
+   expensive deterministic steps. The actual divisor is set to
+   2^EFF_MAP_SCALE2 bytes: */
+
+#define EFF_MAP_SCALE2      3
+
+/* Minimum input file length at which the effector logic kicks in: */
+
+#define EFF_MIN_LEN         128
+
+/* Maximum effector density past which everything is just fuzzed
+   unconditionally (%): */
+
+#define EFF_MAX_PERC        90
+
 /* UI refresh frequency (Hz): */
 
-#define UI_TARGET_HZ        4
+#define UI_TARGET_HZ        5
 
 /* Fuzzer stats file and plot update intervals (sec): */
 
@@ -162,11 +191,19 @@
 
 /* Smoothing divisor for CPU load and exec speed stats (1 - no smoothing). */
 
-#define AVG_SMOOTHING       25
+#define AVG_SMOOTHING       16
 
 /* Sync interval (every n havoc cycles): */
 
 #define SYNC_INTERVAL       5
+
+/* Output directory reuse grace period (minutes): */
+
+#define OUTPUT_GRACE        25
+
+/* Uncomment to use simple file names (id_NNNNNN): */
+
+// #define SIMPLE_FILES
 
 /* List of interesting values to use in fuzzing. */
 
@@ -213,9 +250,10 @@
 
 #define RESEED_RNG          10000
 
-/* Maximum line length passed from GCC to 'as': */
+/* Maximum line length passed from GCC to 'as' and used for parsing
+   configuration files: */
 
-#define MAX_AS_LINE         8192
+#define MAX_LINE            8192
 
 /* Environment variable used to pass SHM ID to the called program. */
 
@@ -234,7 +272,7 @@
 
 #define MSAN_ERROR          86
 
-/* Designated file desciptors for forkserver commands (the application will
+/* Designated file descriptors for forkserver commands (the application will
    use FORKSRV_FD and FORKSRV_FD + 1): */
 
 #define FORKSRV_FD          198
@@ -277,14 +315,20 @@
 #define  CTEST_TARGET_MS    5000
 #define  CTEST_BUSY_CYCLES  (10 * 1000 * 1000)
 
-/* Uncomment this to use inferior line-coverage-based instrumentation. Note
+/* Uncomment this to use inferior block-coverage-based instrumentation. Note
    that you need to recompile the target binary for this to have any effect: */
 
 // #define COVERAGE_ONLY
 
+/* Uncomment this to ignore hit counts and output just one bit per tuple.
+   As with the previous setting, you will need to recompile the target
+   binary: */
+
+// #define SKIP_COUNTS
+
 /* Uncomment this to use instrumentation data to record newly discovered paths,
    but do not use them as seeds for fuzzing. This is useful for conveniently
-   measuring coverage that could be attaine by a "dumb" fuzzing algorithm: */
+   measuring coverage that could be attained by a "dumb" fuzzing algorithm: */
 
 // #define IGNORE_FINDS
 

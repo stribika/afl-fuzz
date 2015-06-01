@@ -32,6 +32,9 @@
 # Note that the tool doesn't modify the files themselves. For that, you want
 # afl-tmin.
 #
+# This script must use bash because other shells may have hardcoded limits on
+# array sizes.
+#
 
 echo "corpus minimization tool for afl-fuzz by <lcamtuf@google.com>"
 echo
@@ -45,9 +48,10 @@ echo
 MEM_LIMIT=100
 TIMEOUT=none
 
-unset IN_DIR OUT_DIR STDIN_FILE E_PAR
+unset IN_DIR OUT_DIR STDIN_FILE EXTRA_PAR MEM_LIMIT_GIVEN \
+  AFL_CMIN_CRASHES_ONLY AFL_CMIN_ALLOW_ANY QEMU_MODE
 
-while getopts "+i:o:f:m:t:e" opt; do
+while getopts "+i:o:f:m:t:eQC" opt; do
 
   case "$opt" in 
 
@@ -62,23 +66,22 @@ while getopts "+i:o:f:m:t:e" opt; do
          STDIN_FILE="$OPTARG"
          ;;
     "m")
-         if [ "$OPTARG" = "none" ]; then
-           MEM_LIMIT="none"
-         else
-           MEM_LIMIT=$[OPTARG]
-           test "$MEM_LIMIT" = "" && exit 1
-         fi
+         MEM_LIMIT="$OPTARG"
+         MEM_LIMIT_GIVEN=1
          ;;
     "t")
-         if [ "$OPTARG" = "none" ]; then
-           TIMEOUT="none"
-         else
-           TIMEOUT=$[OPTARG]
-           test "$TIMEOUT" = "" && exit 1
-         fi
+         TIMEOUT="$OPTARG"
          ;;
     "e")
-         E_PAR="-e"
+         EXTRA_PAR="$EXTRA_PAR -e"
+         ;;
+    "C")
+         export AFL_CMIN_CRASHES_ONLY=1
+         ;;
+    "Q")
+         EXTRA_PAR="$EXTRA_PAR -Q"
+         test "$MEM_LIMIT_GIVEN" = "" && MEM_LIMIT=250
+         QEMU_MODE=1
          ;;
     "?")
          exit 1
@@ -107,6 +110,11 @@ Execution control settings:
   -f file       - location read by the fuzzed program (stdin)
   -m megs       - memory limit for child process ($MEM_LIMIT MB)
   -t msec       - run time limit for child process (none)
+  -Q            - use binary-only instrumentation (QEMU mode)
+
+Minimization settings:
+
+  -C            - keep crashing inputs, reject everything else
   -e            - solve for edge coverage only, ignore hit counts
 
 For additional tips, please consult docs/README.
@@ -118,23 +126,23 @@ fi
 # Do a sanity check to discourage the use of /tmp, since we can't really
 # handle this safely from a shell script.
 
-echo "$IN_DIR" | grep -qE '^(|/var)/tmp/'
+echo "$IN_DIR" | grep -qE '^(/var)?/tmp/'
 T1="$?"
 
-echo "$TARGET_BIN" | grep -qE '^(|/var)/tmp/'
+echo "$TARGET_BIN" | grep -qE '^(/var)?/tmp/'
 T2="$?"
 
-echo "$OUT_DIR" | grep -qE '^(|/var)/tmp/'
+echo "$OUT_DIR" | grep -qE '^(/var)?/tmp/'
 T3="$?"
 
-echo "$STDIN_FILE" | grep -qE '^(|/var)/tmp/'
+echo "$STDIN_FILE" | grep -qE '^(/var)?/tmp/'
 T4="$?"
 
-echo "$PWD" | grep -qE '^(|/var)/tmp/'
+echo "$PWD" | grep -qE '^(/var)?/tmp/'
 T5="$?"
 
 if [ "$T1" = "0" -o "$T2" = "0" -o "$T3" = "0" -o "$T4" = "0" -o "$T5" = "0" ]; then
-  echo "Error: do not use this script in /tmp or /var/tmp." 1>&2
+  echo "[-] Error: do not use this script in /tmp or /var/tmp." 1>&2
   exit 1
 fi
 
@@ -164,7 +172,7 @@ fi
 
 if [ ! "$TIMEOUT" = "none" ]; then
 
-  if [ "$TIMEOUT" -lt "20" ]; then
+  if [ "$TIMEOUT" -lt "10" ]; then
     echo "[-] Error: dangerously low timeout." 1>&2
     exit 1
   fi
@@ -184,7 +192,7 @@ if [ ! -f "$TARGET_BIN" -o ! -x "$TARGET_BIN" ]; then
 
 fi
 
-if [ "$AFL_SKIP_BIN_CHECK" = "" ]; then
+if [ "$AFL_SKIP_BIN_CHECK" = "" -a "$QEMU_MODE" = "" ]; then
 
   if ! grep -qF "__AFL_SHM_ID" "$TARGET_BIN"; then
     echo "[-] Error: binary '$TARGET_BIN' doesn't appear to be instrumented." 1>&2
@@ -200,7 +208,7 @@ fi
 
 test -d "$IN_DIR/queue" && IN_DIR="$IN_DIR/queue"
 
-find "$OUT_DIR" -name 'id:*' -maxdepth 1 -exec rm -- {} \; 2>/dev/null
+find "$OUT_DIR" -name 'id[:_]*' -maxdepth 1 -exec rm -- {} \; 2>/dev/null
 rm -rf "$TRACE_DIR" 2>/dev/null
 
 rmdir "$OUT_DIR" 2>/dev/null
@@ -210,7 +218,7 @@ if [ -d "$OUT_DIR" ]; then
   exit 1
 fi
 
-mkdir -m 755 -p "$TRACE_DIR" || exit 1
+mkdir -m 700 -p "$TRACE_DIR" || exit 1
 
 if [ ! "$STDIN_FILE" = "" ]; then
   rm -f "$STDIN_FILE" || exit 1
@@ -252,12 +260,12 @@ echo "[*] Testing the target binary..."
 
 if [ "$STDIN_FILE" = "" ]; then
 
-  "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/.run_test" -C $E_PAR -- "$@" <"$IN_DIR/$fn"
+  AFL_CMIN_ALLOW_ANY=1 "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/.run_test" -Z $EXTRA_PAR -- "$@" <"$IN_DIR/$fn"
 
 else
 
   cp "$IN_DIR/$FIRST_FILE" "$STDIN_FILE"
-  "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/.run_test" -C $E_PAR -A "$STDIN_FILE" -- "$@" </dev/null
+  AFL_CMIN_ALLOW_ANY=1 "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/.run_test" -Z $EXTRA_PAR -A "$STDIN_FILE" -- "$@" </dev/null
 
 fi
 
@@ -269,7 +277,7 @@ if [ "$FIRST_COUNT" -gt "0" ]; then
 
 else
 
-  echo "[-] Error: no instrumentation output detected (perhaps it crashed or timed out)." 1>&2
+  echo "[-] Error: no instrumentation output detected (perhaps crash or timeout)." 1>&2
   test "$AFL_KEEP_TRACES" = "" && rm -rf "$TRACE_DIR"
   exit 1
 
@@ -289,27 +297,27 @@ echo "[*] Obtaining traces for input files in '$IN_DIR'..."
 
   if [ "$STDIN_FILE" = "" ]; then
 
-    for fn in `ls "$IN_DIR"`; do
+    while read -r fn; do
 
       CUR=$((CUR+1))
       printf "\\r    Processing file $CUR/$IN_COUNT... "
 
-      "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/$fn" -C $E_PAR -- "$@" <"$IN_DIR/$fn"
+      "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/$fn" -Z $EXTRA_PAR -- "$@" <"$IN_DIR/$fn"
 
-    done
+    done < <(ls "$IN_DIR")
 
   else
 
-    for fn in `ls "$IN_DIR"`; do
+    while read -r fn; do
 
       CUR=$((CUR+1))
       printf "\\r    Processing file $CUR/$IN_COUNT... "
 
       cp "$IN_DIR/$fn" "$STDIN_FILE"
 
-      "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/$fn" -C $E_PAR -A "$STDIN_FILE" -- "$@" </dev/null
+      "$SHOWMAP" -m "$MEM_LIMIT" -t "$TIMEOUT" -o "$TRACE_DIR/$fn" -Z $EXTRA_PAR -A "$STDIN_FILE" -- "$@" </dev/null
 
-    done
+    done < <(ls "$IN_DIR")
 
 
   fi
@@ -329,7 +337,7 @@ echo
 
 echo "[*] Sorting trace sets (this may take a while)..."
 
-ls "$IN_DIR" | sed "s#^#$TRACE_DIR/#" | xargs -n 1 cat | sort | \
+ls "$IN_DIR" | sed "s#^#$TRACE_DIR/#" | xargs -d '\n' -n 1 cat | sort | \
   uniq -c | sort -n >"$TRACE_DIR/.all_uniq"
 
 TUPLE_COUNT=$((`grep -c . "$TRACE_DIR/.all_uniq"`))
@@ -350,14 +358,14 @@ echo "[*] Finding best candidates for each tuple..."
 
 CUR=0
 
-for fn in `ls -rS "$IN_DIR"`; do
+while read -r fn; do
 
   CUR=$((CUR+1))
   printf "\\r    Processing file $CUR/$IN_COUNT... "
 
   sed "s#\$# $fn#" "$TRACE_DIR/$fn" >>"$TRACE_DIR/.candidate_list"
 
-done
+done < <(ls -rS "$IN_DIR")
 
 echo
 
@@ -374,6 +382,12 @@ echo "[*] Sorting candidate list (be patient)..."
 
 sort -k1,1 -s -u "$TRACE_DIR/.candidate_list" | \
   sed 's/^/BEST_FILE[/;s/ /]="/;s/$/"/' >"$TRACE_DIR/.candidate_script"
+
+if [ ! -s "$TRACE_DIR/.candidate_script" ]; then
+  echo "[-] Error: no traces obtained from test cases, check syntax!"
+  test "$AFL_KEEP_TRACES" = "" && rm -rf "$TRACE_DIR"
+  exit 1
+fi
 
 # The sed command converted the sorted list to a shell script that populates
 # BEST_FILE[tuple]="fname". Let's load that!

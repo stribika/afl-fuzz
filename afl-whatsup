@@ -5,7 +5,7 @@
 #
 # Written and maintained by Michal Zalewski <lcamtuf@google.com>
 #
-# Copyright 2014, 2015 Google Inc. All rights reserved.
+# Copyright 2015 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -75,7 +75,7 @@ fi
 
 for i in `find . -maxdepth 2 -iname fuzzer_stats`; do
 
-  sed 's/[ ]*:[ ]*/="/;s/$/"/' "$i" >"$TMP"
+  sed 's/^command_line.*$/_skip:1/;s/[ ]*:[ ]*/="/;s/$/"/' "$i" >"$TMP"
   . "$TMP"
 
   RUN_UNIX=$((CUR_TIME - start_time))
@@ -134,6 +134,8 @@ rm -f "$TMP"
 
 TOTAL_DAYS=$((TOTAL_TIME / 60 / 60 / 24))
 TOTAL_HRS=$(((TOTAL_TIME / 60 / 60) % 24))
+
+test "$TOTAL_TIME" = "0" && TOTAL_TIME=1
 
 echo "Summary stats"
 echo "============="

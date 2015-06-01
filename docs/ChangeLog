@@ -13,8 +13,604 @@ Want to stay in the loop on major new features? Join our mailing list by
 sending a mail to <afl-users+subscribe@googlegroups.com>.
 
 Not sure if you should upgrade? The lowest currently recommended version
-is 1.10b. If you're stuck on an earlier release, it's strongly advisable
+is 1.76b. If you're stuck on an earlier release, it's strongly advisable
 to get on with the times.
+
+--------------
+Version 1.80b:
+--------------
+
+  - Made afl-cmin tolerant of whitespaces in filenames. Suggested by 
+    Jonathan Neuschafer and Ketil Froyn.
+
+  - Added support for AFL_EXIT_WHEN_DONE, as suggested by Michael Rash.
+
+--------------
+Version 1.79b:
+--------------
+
+  - Added support for dictionary levels, see testcases/README.testcases.
+
+  - Reworked the SQL dictionary to use levels.
+
+  - Added a note about Preeny.
+
+--------------
+Version 1.78b:
+--------------
+
+  - Added a dictionary for PDF, contributed by Ben Nagy.
+
+  - Added several references to afl-cov, a new tool by Michael Rash.
+
+  - Fixed a problem with crash reporter detection on MacOS X, as reported by
+    Louis Dassy.
+
+--------------
+Version 1.77b:
+--------------
+
+  - Extended the -x option to support single-file dictionaries.
+
+  - Replaced factory-packaged dictionaries with file-based variants.
+
+  - Removed newlines from HTML keywords in testcases/_extras/html/.
+
+--------------
+Version 1.76b:
+--------------
+
+  - Very significantly reduced the number of duplicate execs during
+    deterministic checks, chiefly in int16 and int32 stages. Confirmed
+    identical path yields. This should improve early-stage efficiency by
+    around 5-10%.
+
+  - Reduced the likelihood of duplicate non-deterministic execs by
+    bumping up lowest stacking factor from 1 to 2. Quickly confirmed
+    that this doesn't seem to have significant impact on coverage with
+    libpng.
+
+  - Added a note about integrating afl-fuzz with third-party tools.
+
+--------------
+Version 1.75b:
+--------------
+
+  - Improved argv_fuzzing to allow it to emit empty args. Spotted by Jakub
+    Wilk.
+
+  - afl-clang-fast now defines __AFL_HAVE_MANUAL_INIT. Suggested by Jakub Wilk.
+
+  - Fixed a libtool-related bug with afl-clang-fast that would make some
+    ./configure invocations generate incorrect output. Spotted by Jakub Wilk.
+
+  - Removed flock() on Solaris. This means no locking on this platform,
+    but so be it. Problem reported by Martin Carpenter.
+
+  - Fixed a typo. Reported by Jakub Wilk.
+
+--------------
+Version 1.74b:
+--------------
+
+  - Added an example argv[] fuzzing wrapper in experimental/argv_fuzzing.
+    Reworked the bash example to be faster, too.
+
+  - Clarified llvm_mode prerequisites for FreeBSD.
+
+  - Improved afl-tmin to use /tmp if cwd is not writeable.
+
+  - Removed redundant includes for sys/fcntl.h, which caused warnings with
+    some nitpicky versions of libc.
+
+  - Added a corpus of basic HTML tags that parsers are likely to pay attention
+    to (no attributes).
+
+  - Added EP_EnabledOnOptLevel0 to llvm_mode, so that the instrumentation is
+    inserted even when AFL_DONT_OPTIMIZE=1 is set.
+
+  - Switched qemu_mode to use the newly-released QEMU 2.3.0, which contains
+    a couple of minor bugfixes.
+
+--------------
+Version 1.73b:
+--------------
+
+  - Fixed a pretty stupid bug in effector maps that could sometimes cause
+    AFL to fuzz slightly more than necessary; and in very rare circumstances,
+    could lead to SEGV if eff_map is aligned with page boundary and followed
+    by an unmapped page. Spotted by Jonathan Gray.
+
+--------------
+Version 1.72b:
+--------------
+
+  - Fixed a glitch in non-x86 install, spotted by Tobias Ospelt.
+
+  - Added a minor safeguard to llvm_mode Makefile following a report from
+    Kai Zhao.
+
+--------------
+Version 1.71b:
+--------------
+
+  - Fixed a bug with installed copies of AFL trying to use QEMU mode. Spotted
+    by G.M. Lime.
+
+  - Added last path / crash / hang times to fuzzer_stats, suggested by
+    Richard Hipp.
+
+  - Fixed a typo, thanks to Jakub Wilk.
+
+--------------
+Version 1.70b:
+--------------
+
+  - Modified resumption code to reuse the original timeout value when resuming
+    a session if -t is not given. This prevents timeout creep in continuous
+    fuzzing.
+
+  - Added improved error messages for failed handshake when AFL_DEFER_FORKSRV
+    is set.
+
+  - Made a slight improvement to llvm_mode/Makefile based on feedback from
+    Jakub Wilk.
+
+  - Refreshed several bits of documentation.
+
+  - Added a more prominent note about the MacOS X trade-offs to Makefile.
+
+--------------
+Version 1.69b:
+--------------
+
+  - Added support for deferred initialization in LLVM mode. Suggested by
+    Richard Godbee.
+
+--------------
+Version 1.68b:
+--------------
+
+  - Fixed a minor PRNG glitch that would make the first seconds of a fuzzing
+    job deterministic. Thanks to Andreas Stieger.
+
+  - Made tmp[] static in the LLVM runtime to keep Valgrind happy (this had
+    no impact on anything else). Spotted by Richard Godbee.
+
+  - Clarified the footnote in README.
+
+--------------
+Version 1.67b:
+--------------
+
+  - Made one more correction to llvm_mode Makefile, spotted by Jakub Wilk.
+
+--------------
+Version 1.66b:
+--------------
+
+  - Added CC / CXX support to llvm_mode Makefile. Requested by Charlie Eriksen.
+
+  - Fixed 'make clean' with gmake. Suggested by Oliver Schneider.
+
+  - Fixed 'make -j n clean all'. Suggested by Oliver Schneider.
+
+  - Removed build date and time from banners to give people deterministic
+    builds. Requested by Jakub Wilk.
+
+--------------
+Version 1.65b:
+--------------
+
+  - Fixed a snafu with some leftover code in afl-clang-fast.
+
+  - Corrected even moar typos.
+
+--------------
+Version 1.64b:
+--------------
+
+  - Further simplified afl-clang-fast runtime by reverting .init_array to
+    __attribute__((constructor(0)). This should improve compatibility with
+    non-ELF platforms.
+
+  - Fixed a problem with afl-clang-fast and -shared libraries. Simplified
+    the code by getting rid of .preinit_array and replacing it with a .comm
+    object. Problem reported by Charlie Eriksen.
+
+  - Removed unnecessary instrumentation density adjustment for the LLVM mode.
+    Reported by Jonathan Neuschafer.
+
+--------------
+Version 1.63b:
+--------------
+
+  - Updated cgroups_asan/ with a new version from Sam, made a couple changes
+    to streamline it and keep parallel afl instances in separate groups.
+
+  - Fixed typos, thanks to Jakub Wilk.
+
+--------------
+Version 1.62b:
+--------------
+
+  - Improved the handling of -x in afl-clang-fast,
+
+  - Improved the handling of low AFL_INST_RATIO settings for QEMU and
+    LLVM modes.
+
+  - Fixed the llvm-config bug for good (thanks to Tobias Ospelt).
+
+--------------
+Version 1.61b:
+--------------
+
+  - Fixed an obscure bug compiling OpenSSL with afl-clang-fast. Patch by
+    Laszlo Szekeres.
+
+  - Fixed a 'make install' bug on non-x86 systems, thanks to Tobias Ospelt.
+
+  - Fixed a problem with half-broken llvm-config on Odroid, thanks to
+    Tobias Ospelt. (There is another odd bug there that hasn't been fully
+    fixed - TBD).
+
+--------------
+Version 1.60b:
+--------------
+
+  - Allowed experimental/llvm_instrumentation/ to graduate to llvm_mode/.
+
+  - Removed experimental/arm_support/, since it's completely broken and likely
+    unnecessary with LLVM support in place.
+
+  - Added ASAN cgroups script to experimental/asan_cgroups/, updated existing
+    docs. Courtesy Sam Hakim and David A. Wheeler.
+
+  - Refactored afl-tmin to reduce the number of execs in common use cases.
+    Ideas from Jonathan Neuschafer and Turo Lamminen.
+
+  - Added a note about CLAs at the bottom of README.
+
+  - Renamed testcases_readme.txt to README.testcases for some semblance of
+    consistency.
+
+  - Made assorted updates to docs.
+
+  - Added MEM_BARRIER() to afl-showmap and afl-tmin, just to be safe.
+
+--------------
+Version 1.59b:
+--------------
+
+  - Imported Laszlo Szekeres' experimental LLVM instrumentation into
+    experimental/llvm_instrumentation. I'll work on including it in the 
+    "mainstream" version soon.
+
+  - Fixed another typo, thanks to Jakub Wilk.
+
+--------------
+Version 1.58b:
+--------------
+
+  - Added a workaround for abort() behavior in -lpthread programs in QEMU mode.
+    Spotted by Aidan Thornton.
+
+  - Made several documentation updates, including links to the static
+    instrumentation tool (sister_projects.txt).
+
+--------------
+Version 1.57b:
+--------------
+
+  - Fixed a problem with exception handling on some versions of MacOS X.
+    Spotted by Samir Aguiar and Anders Wang Kristensen.
+
+  - Tweaked afl-gcc to use BIN_PATH instead of a fixed string in help
+    messages.
+
+--------------
+Version 1.56b:
+--------------
+
+  - Renamed related_work.txt to historical_notes.txt.
+
+  - Made minor edits to the ASAN doc.
+
+  - Added docs/sister_projects.txt with a list of inspired or closely
+    related utilities.
+
+--------------
+Version 1.55b:
+--------------
+
+  - Fixed a glitch with afl-showmap opening /dev/null with O_RDONLY when
+    running in quiet mode. Spotted by Tyler Nighswander.
+
+--------------
+Version 1.54b:
+--------------
+
+  - Added another postprocessor example for PNG.
+
+  - Made a cosmetic fix to realloc() handling in experimental/post_library/,
+    suggested by Jakub Wilk.
+
+  - Improved -ldl handling. Suggested by Jakub Wilk.
+
+--------------
+Version 1.53b:
+--------------
+
+  - Fixed an -l ordering issue that is apparently still a problem on Ubuntu.
+    Spotted by William Robinet.
+
+--------------
+Version 1.52b:
+--------------
+
+  - Added support for file format postprocessors. Requested by Ben Nagy. This
+    feature is intentionally buried, since it's fairly easy to misuse and
+    useful only in some scenarios. See experimental/post_library/.
+
+--------------
+Version 1.51b:
+--------------
+
+  - Made it possible to properly override LD_BIND_NOW after one very unusual
+    report of trouble.
+
+  - Cleaned up typos, thanks to Jakub Wilk.
+
+  - Fixed a bug in AFL_DUMB_FORKSRV.
+
+--------------
+Version 1.50b:
+--------------
+
+  - Fixed a flock() bug that would prevent dir reuse errors from kicking
+    in every now and then.
+
+  - Renamed references to ppvm (the project is now called recidivm).
+
+  - Made improvements to file descriptor handling to avoid leaving some fds
+    unnecessarily open in the child process.
+
+  - Fixed a typo or two.
+
+--------------
+Version 1.49b:
+--------------
+
+  - Added code to save original command line in fuzzer_stats and
+    crashes/README.txt. Also saves fuzzer version in fuzzer_stats.
+    Requested by Ben Nagy.
+
+--------------
+Version 1.48b:
+--------------
+
+  - Fixed a bug with QEMU fork server crashes when translation is attempted
+    after a jump to an invalid pointer in the child process (i.e., after
+    bumping into a particularly nasty security bug in the tested binary).
+    Reported by Tyler Nighswander.
+
+--------------
+Version 1.47b:
+--------------
+
+  - Fixed a bug with afl-cmin in -Q mode complaining about binary being not
+    instrumented. Thanks to Jonathan Neuschafer for the bug report.
+
+  - Fixed another bug with argv handling for afl-fuzz in -Q mode. Reported
+    by Jonathan Neuschafer.
+
+  - Improved the use of colors when showing crash counts in -C mode.
+
+--------------
+Version 1.46b:
+--------------
+
+  - Improved instrumentation performance on 32-bit systems by getting rid of
+    xor-swap (oddly enough, xor-swap is still faster on 64-bit) and tweaking
+    alignment.
+
+  - Made path depth numbers more accurate with imported test cases.
+
+--------------
+Version 1.45b:
+--------------
+
+  - Added support for SIMPLE_FILES in config.h for folks who don't like
+    descriptive file names. Generates very simple names without colons,
+    commas, plus signs, dashes, etc.
+
+  - Replaced zero-sized files with symlinks in the variable behavior state
+    dir to simplify examining the relevant test cases.
+
+  - Changed the period of limited-range block ops from 5 to 10 minutes based
+    on a couple of experiments. The basic goal of this delay timer behavior
+    is to better support jobs that are seeded with completely invalid files,
+    in which case, the first few queue cycles may be completed very quickly
+    without discovering new paths. Should have no effect on well-seeded jobs.
+
+  - Made several minor updates to docs.
+
+--------------
+Version 1.44b:
+--------------
+
+  - Corrected two bungled attempts to get the -C mode work properly
+    with afl-cmin (accounting for the short-lived releases tagged 1.42 and
+    1.43b) - sorry.
+
+  - Removed AFL_ALLOW_CRASHES in favor of the -C mode in said tool.
+
+  - Said goodbye to Hello Kitty, as requested by Padraig Brady.
+
+--------------
+Version 1.41b:
+--------------
+
+  - Added AFL_ALLOW_CRASHES=1 to afl-cmin. Allows crashing inputs in the
+    output corpus. Changed the default behavior to disallow it.
+
+  - Made the afl-cmin output dir default to 0700, not 0755, to be consistent
+    with afl-fuzz; documented the rationale for 0755 in afl-plot.
+
+  - Lowered the output dir reuse time limit to 25 minutes as a dice-roll
+    compromise after a discussion on afl-users@.
+
+  - Made afl-showmap accept -o /dev/null without borking out.
+
+  - Added support for crash / hang info in exit codes of afl-showmap.
+
+  - Tweaked block operation scaling to also factor in ballpark run time
+    in cases where queue passes take very little time.
+
+  - Fixed typos and made improvements to several docs.
+
+--------------
+Version 1.40b:
+--------------
+
+  - Switched to smaller block op sizes during the first passes over the
+    queue. Helps keep test cases small.
+
+  - Added memory barrier for run_target(), just in case compilers get
+    smarter than they are today.
+
+  - Updated a bunch of docs.
+
+--------------
+Version 1.39b:
+--------------
+
+  - Added the ability to skip inputs by sending SIGUSR1 to the fuzzer.
+
+  - Reworked several portions of the documentation.
+
+  - Changed the code to reset splicing perf scores between runs to keep
+    them closer to intended length.
+
+  - Reduced the minimum value of -t to 5 for afl-fuzz (~200 exec/sec)
+    and to 10 for auxiliary tools (due to the absence of a fork server).
+
+  - Switched to more aggressive default timeouts (rounded up to 25 ms
+    versus 50 ms - ~40 execs/sec) and made several other cosmetic changes
+    to the timeout code.
+
+--------------
+Version 1.38b:
+--------------
+
+  - Fixed a bug in the QEMU build script, spotted by William Robinet.
+
+  - Improved the reporting of skipped bitflips to keep the UI counters a bit
+    more accurate.
+
+  - Cleaned up related_work.txt and added some non-goals.
+
+  - Fixed typos, thanks to Jakub Wilk.
+
+--------------
+Version 1.37b:
+--------------
+
+  - Added effector maps, which detect regions that do not seem to respond
+    to bitflips and subsequently exclude them from more expensive steps
+    (arithmetics, known ints, etc). This should offer significant performance
+    improvements with quite a few types of text-based formats, reducing the
+    number of deterministic execs by a factor of 2 or so.
+
+  - Cleaned up mem limit handling in afl-cmin.
+
+  - Switched from uname -i to uname -m to work around Gentoo-specific
+    issues with coreutils when building QEMU. Reported by William Robinet.
+
+  - Switched from PID checking to flock() to detect running sessions.
+    Problem, against all odds, bumped into by Jakub Wilk.
+
+  - Added SKIP_COUNTS and changed the behavior of COVERAGE_ONLY in config.h.
+    Useful only for internal benchmarking.
+
+  - Made improvements to UI refresh rates and exec/sec stats to make them
+    more stable.
+
+  - Made assorted improvements to the documentation and to the QEMU build
+    script.
+
+  - Switched from perror() to strerror() in error macros, thanks to Jakub
+    Wilk for the nag.
+
+  - Moved afl-cmin back to bash, wasn't thinking straight. It has to stay
+    on bash because other shells may have restrictive limits on array sizes.
+
+--------------
+Version 1.36b:
+--------------
+
+  - Switched afl-cmin over to /bin/sh. Thanks to Jonathan Gray.
+
+  - Fixed an off-by-one bug in queue limit check when resuming sessions
+    (could cause NULL ptr deref if you are *really* unlucky).
+
+  - Fixed the QEMU script to tolerate i686 if returned by uname -i. Based on
+    a problem report from Sebastien Duquette.
+
+  - Added multiple references to Jakub's ppvm tool.
+
+  - Made several minor improvements to the Makefile.
+
+  - Believe it or not, fixed some typos. Thanks to Jakub Wilk.
+
+--------------
+Version 1.35b:
+--------------
+
+  - Cleaned up regular expressions in some of the scripts to avoid errors
+    on *BSD systems. Spotted by Jonathan Gray.
+
+--------------
+Version 1.34b:
+--------------
+
+  - Performed a substantial documentation and program output cleanup to
+    better explain the QEMU feature.
+
+--------------
+Version 1.33b:
+--------------
+
+  - Added support for AFL_INST_RATIO and AFL_INST_LIBS in the QEMU mode.
+
+  - Fixed a stack allocation crash in QEMU mode (bug in QEMU, fixed with
+    an extra patch applied to the downloaded release).
+
+  - Added code to test the QEMU instrumentation once the afl-qemu-trace
+    binary is built.
+
+  - Modified afl-tmin and afl-showmap to search $PATH for binaries and to
+    better handle QEMU support.
+
+  - Added a check for instrumented binaries when passing -Q to afl-fuzz.
+
+--------------
+Version 1.32b:
+--------------
+
+  - Fixed 'make install' following the QEMU changes. Spotted by Hanno Boeck.
+
+  - Fixed EXTRA_PAR handling in afl-cmin.
+
+--------------
+Version 1.31b:
+--------------
+
+  - Hallelujah! Thanks to Andrew Griffiths, we now support very fast, black-box
+    instrumentation of binary-only code. See qemu_mode/README.qemu.
+
+    To use this feature, you need to follow the instructions in that
+    directory and then run afl-fuzz with -Q.
 
 --------------
 Version 1.30b:
@@ -35,7 +631,7 @@ Version 1.30b:
 Version 1.29b:
 --------------
 
-  - Improved the naming of test cases when orig: is alredy present in the file
+  - Improved the naming of test cases when orig: is already present in the file
     name.
 
   - Made substantial improvements to technical_details.txt.
@@ -504,7 +1100,7 @@ Version 0.88b:
 --------------
 
   - Added support for plotting, with design and implementation based on a
-    prototype design proposed by by Michael Rash. Huge thanks!
+    prototype design proposed by Michael Rash. Huge thanks!
 
   - Added afl-plot.sh, which allows you to, well, generate a nice plot using
     this data.

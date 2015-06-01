@@ -4,7 +4,7 @@
 
    Written and maintained by Michal Zalewski <lcamtuf@google.com>
 
-   Copyright 2013, 2014 Google Inc. All rights reserved.
+   Copyright 2013, 2014, 2015 Google Inc. All rights reserved.
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
@@ -72,5 +72,8 @@ typedef int64_t  s64;
 
 #define STRINGIFY_INTERNAL(x) #x
 #define STRINGIFY(x) STRINGIFY_INTERNAL(x)
+
+#define MEM_BARRIER() \
+  asm volatile("" ::: "memory")
 
 #endif /* ! _HAVE_TYPES_H */

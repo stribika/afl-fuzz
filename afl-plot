@@ -6,7 +6,7 @@
 # Written and maintained by Michal Zalewski <lcamtuf@google.com>
 # Based on a design & prototype by Michael Rash.
 #
-# Copyright 2014 Google Inc. All rights reserved.
+# Copyright 2014, 2015 Google Inc. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -38,22 +38,22 @@ _EOF_
 
 fi
 
-echo "$1" | grep -qE '^(|/var)/tmp/'
+echo "$1" | grep -qE '^(/var)?/tmp/'
 T1="$?"
 
-echo "$2" | grep -qE '^(|/var)/tmp/'
+echo "$2" | grep -qE '^(/var)?/tmp/'
 T2="$?"
 
 if [ "$T1" = "0" -o "$T2" = "0" ]; then
 
-  echo "Error: do not use shared /tmp or /var/tmp directories with this script." 1>&2
+  echo "[-] Error: this script shouldn't be used with shared /tmp directories." 1>&2
   exit 1
 
 fi
 
 if [ ! -f "$1/plot_data" ]; then
 
-  echo "[-] The input directory is not valid (missing 'plot_data')." 1>&2
+  echo "[-] Error: input directory is not valid (missing 'plot_data')." 1>&2
   exit 1
 
 fi
@@ -66,7 +66,7 @@ GNUPLOT=`which gnuplot 2>/dev/null`
 
 if [ "$GNUPLOT" = "" ]; then
 
-  echo "[-] Can't find 'gnuplot' in your \$PATH - do you have it installed?" 1>&2
+  echo "[-] Error: can't find 'gnuplot' in your \$PATH." 1>&2
   exit 1
 
 fi
@@ -75,7 +75,7 @@ mkdir "$2" 2>/dev/null
 
 if [ ! -d "$2" ]; then
 
-  echo "[-] Unable to create the output directory - pick another location." 1>&2
+  echo "[-] Error: unable to create the output directory - pick another location." 1>&2
   exit 1
 
 fi
@@ -134,7 +134,7 @@ _EOF_
 
 if [ ! -s "$2/exec_speed.png" ]; then
 
-  echo "[-] Oops, something went wrong! Perhaps you have an ancient or broken version of gnuplot?" 1>&2
+  echo "[-] Error: something went wrong! Perhaps you have an ancient version of gnuplot?" 1>&2
   exit 1
 
 fi
@@ -153,6 +153,10 @@ cat >"$2/index.html" <<_EOF_
 <img src="exec_speed.png" width=1000 height=200>
 
 _EOF_
+
+# Make it easy to remotely view results when outputting directly to a directory
+# served by Apache or other HTTP daemon. Since the plots aren't horribly
+# sensitive, this seems like a reasonable trade-off.
 
 chmod 755 "$2"
 chmod 644 "$2/high_freq.png" "$2/low_freq.png" "$2/exec_speed.png" "$2/index.html"

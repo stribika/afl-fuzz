@@ -37,7 +37,6 @@
 #include <dirent.h>
 #include <fcntl.h>
 
-#include <sys/fcntl.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/shm.h>
@@ -52,6 +51,7 @@ static u8* trace_bits;                /* SHM with instrumentation bitmap   */
 static u8 *in_file,                   /* Minimizer input test case         */
           *out_file,                  /* Minimizer output file             */
           *prog_in,                   /* Targeted program input file       */
+          *target_path,               /* Path to target binary             */
           *doc_path;                  /* Path to docs                      */
 
 static u8* in_data;                   /* Input data for trimming           */
@@ -242,6 +242,7 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   u32 cksum;
 
   memset(trace_bits, 0, MAP_SIZE);
+  MEM_BARRIER();
 
   prog_in_fd = write_to_file(prog_in, mem, len);
 
@@ -284,7 +285,7 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
     r.rlim_max = r.rlim_cur = 0;
     setrlimit(RLIMIT_CORE, &r); /* Ignore errors */
 
-    execvp(argv[0], argv);
+    execv(target_path, argv);
 
     *(u32*)trace_bits = EXEC_FAIL_SIG;
     exit(0);
@@ -308,6 +309,8 @@ static u8 run_target(char** argv, u8* mem, u32 len, u8 first_run) {
   it.it_value.tv_usec = 0;
 
   setitimer(ITIMER_REAL, &it, NULL);
+
+  MEM_BARRIER();
 
   /* Clean up bitmap, analyze exit condition, etc. */
 
@@ -393,9 +396,54 @@ static void minimize(char** argv) {
   u8* tmp_buf = ck_alloc_nozero(in_len);
   u32 orig_len = in_len, stage_o_len;
 
-  u32 del_len, del_pos, i, alpha_size, cur_pass = 0;
-  u32 syms_removed, alpha_del1, alpha_del2, alpha_d_total = 0;
-  u8  changed_any;
+  u32 del_len, set_len, del_pos, set_pos, i, alpha_size, cur_pass = 0;
+  u32 syms_removed, alpha_del0 = 0, alpha_del1, alpha_del2, alpha_d_total = 0;
+  u8  changed_any, prev_del;
+
+  /***********************
+   * BLOCK NORMALIZATION *
+   ***********************/
+
+  set_len    = next_p2(in_len / TMIN_SET_STEPS);
+  set_pos    = 0;
+
+  if (set_len < TMIN_SET_MIN_SIZE) set_len = TMIN_SET_MIN_SIZE;
+
+  ACTF(cBRI "Stage #0: " cNOR "One-time block normalization...");
+
+  while (set_pos < in_len) {
+
+    u8  res;
+    u32 use_len = MIN(set_len, in_len - set_pos);
+
+    for (i = 0; i < use_len; i++)
+      if (in_data[set_pos + i] != '0') break;
+
+    if (i != use_len) {
+
+      memcpy(tmp_buf, in_data, in_len);
+      memset(tmp_buf + set_pos, '0', use_len);
+  
+      res = run_target(argv, tmp_buf, in_len, 0);
+
+      if (res) {
+
+        memset(in_data + set_pos, '0', use_len);
+        changed_any = 1;
+        alpha_del0 += use_len;
+
+      }
+
+    }
+
+    set_pos += set_len;
+
+  }
+
+  alpha_d_total += alpha_del0;
+
+  OKF("Block normalization complete, %u byte%s replaced.", alpha_del0,
+      alpha_del0 == 1 ? "" : "s");
 
 next_pass:
 
@@ -409,12 +457,13 @@ next_pass:
   del_len = next_p2(in_len / TRIM_START_STEPS);
   stage_o_len = in_len;
 
-  ACTF(cBRI "Stage #1: " cNOR " Removing blocks of data...");
+  ACTF(cBRI "Stage #1: " cNOR "Removing blocks of data...");
 
 next_del_blksize:
 
   if (!del_len) del_len = 1;
-  del_pos = 0;
+  del_pos  = 0;
+  prev_del = 1;
 
   SAYF(cGRA "    Block length = %u, remaining size = %u\n" cNOR,
        del_len, in_len);
@@ -424,11 +473,26 @@ next_del_blksize:
     u8  res;
     s32 tail_len;
 
-    /* Head */
-    memcpy(tmp_buf, in_data, del_pos);
-
     tail_len = in_len - del_pos - del_len;
     if (tail_len < 0) tail_len = 0;
+
+    /* If we have processed at least one full block (initially, prev_del == 1),
+       and we did so without deleting the previous one, and we aren't at the
+       very end of the buffer (tail_len > 0), and the current block is the same
+       as the previous one... skip this step as a no-op. */
+
+    if (!prev_del && tail_len && !memcmp(in_data + del_pos - del_len,
+        in_data + del_pos, del_len)) {
+
+      del_pos += del_len;
+      continue;
+
+    }
+
+    prev_del = 0;
+
+    /* Head */
+    memcpy(tmp_buf, in_data, del_pos);
 
     /* Tail */
     memcpy(tmp_buf + del_pos, in_data + del_pos + del_len, tail_len);
@@ -438,7 +502,9 @@ next_del_blksize:
     if (res) {
 
       memcpy(in_data, tmp_buf, del_pos + tail_len);
-      in_len = del_pos + tail_len;
+      prev_del = 1;
+      in_len   = del_pos + tail_len;
+
       changed_any = 1;
 
     } else del_pos += del_len;
@@ -516,25 +582,24 @@ next_del_blksize:
 
   ACTF(cBRI "Stage #3: " cNOR "Character minimization...");
 
+  memcpy(tmp_buf, in_data, in_len);
+
   for (i = 0; i < in_len; i++) {
 
-    u8 res;
+    u8 res, orig = tmp_buf[i];
 
-    if (tmp_buf[i] == '0') continue;
-
-    memcpy(tmp_buf, in_data, in_len);
-
+    if (orig == '0') continue;
     tmp_buf[i] = '0';
 
     res = run_target(argv, tmp_buf, in_len, 0);
 
     if (res) {
 
-      memcpy(in_data, tmp_buf, in_len);
+      in_data[i] = '0';
       alpha_del2++;
       changed_any = 1;
 
-    }
+    } else tmp_buf[i] = orig;
 
   }
 
@@ -584,8 +649,20 @@ static void set_up_environment(void) {
   dev_null_fd = open("/dev/null", O_RDWR);
   if (dev_null_fd < 0) PFATAL("Unable to open /dev/null");
 
-  if (!prog_in)
-    prog_in = alloc_printf(".afl-tmin-temp-%u", getpid());
+  if (!prog_in) {
+
+    u8* use_dir = ".";
+
+    if (!access(use_dir, R_OK | W_OK | X_OK)) {
+
+      use_dir = getenv("TMPDIR");
+      if (!use_dir) use_dir = "/tmp";
+
+      prog_in = alloc_printf("%s/.afl-tmin-temp-%u", use_dir, getpid());
+
+    }
+
+  }
 
   /* Set sane defaults... */
 
@@ -694,7 +771,8 @@ static void usage(u8* argv0) {
 
        "  -f file       - input file read by the tested program (stdin)\n"
        "  -t msec       - timeout for each run (%u ms)\n"
-       "  -m megs       - memory limit for child process (%u MB)\n\n"
+       "  -m megs       - memory limit for child process (%u MB)\n"
+       "  -Q            - use binary-only instrumentation (QEMU mode)\n\n"
 
        "Minimization settings:\n\n"
 
@@ -710,19 +788,131 @@ static void usage(u8* argv0) {
 }
 
 
+/* Find binary. */
+
+static void find_binary(u8* fname) {
+
+  u8* env_path = 0;
+  struct stat st;
+
+  if (strchr(fname, '/') || !(env_path = getenv("PATH"))) {
+
+    target_path = ck_strdup(fname);
+
+    if (stat(target_path, &st) || !S_ISREG(st.st_mode) ||
+        !(st.st_mode & 0111) || st.st_size < 4)
+      FATAL("Program '%s' not found or not executable", fname);
+
+  } else {
+
+    while (env_path) {
+
+      u8 *cur_elem, *delim = strchr(env_path, ':');
+
+      if (delim) {
+
+        cur_elem = ck_alloc(delim - env_path + 1);
+        memcpy(cur_elem, env_path, delim - env_path);
+        delim++;
+
+      } else cur_elem = ck_strdup(env_path);
+
+      env_path = delim;
+
+      if (cur_elem[0])
+        target_path = alloc_printf("%s/%s", cur_elem, fname);
+      else
+        target_path = ck_strdup(fname);
+
+      ck_free(cur_elem);
+
+      if (!stat(target_path, &st) && S_ISREG(st.st_mode) &&
+          (st.st_mode & 0111) && st.st_size >= 4) break;
+
+      ck_free(target_path);
+      target_path = 0;
+
+    }
+
+    if (!target_path) FATAL("Program '%s' not found or not executable", fname);
+
+  }
+
+}
+
+
+/* Fix up argv for QEMU. */
+
+static char** get_qemu_argv(u8* own_loc, char** argv, int argc) {
+
+  char** new_argv = ck_alloc(sizeof(char*) * (argc + 4));
+  u8 *tmp, *cp, *rsl, *own_copy;
+
+  memcpy(new_argv + 3, argv + 1, sizeof(char*) * argc);
+
+  /* Now we need to actually find qemu for argv[0]. */
+
+  new_argv[2] = target_path;
+  new_argv[1] = "--";
+
+  tmp = getenv("AFL_PATH");
+
+  if (tmp) {
+
+    cp = alloc_printf("%s/afl-qemu-trace", tmp);
+
+    if (access(cp, X_OK))
+      FATAL("Unable to find '%s'", tmp);
+
+    target_path = new_argv[0] = cp;
+    return new_argv;
+
+  }
+
+  own_copy = ck_strdup(own_loc);
+  rsl = strrchr(own_copy, '/');
+
+  if (rsl) {
+
+    *rsl = 0;
+
+    cp = alloc_printf("%s/afl-qemu-trace", own_copy);
+    ck_free(own_copy);
+
+    if (!access(cp, X_OK)) {
+
+      target_path = new_argv[0] = cp;
+      return new_argv;
+
+    }
+
+  } else ck_free(own_copy);
+
+  if (!access(BIN_PATH "/afl-qemu-trace", X_OK)) {
+
+    target_path = new_argv[0] = BIN_PATH "/afl-qemu-trace";
+    return new_argv;
+
+  }
+
+  FATAL("Unable to find 'afl-qemu-trace'.");
+
+}
+
+
 /* Main entry point */
 
 int main(int argc, char** argv) {
 
   s32 opt;
-  u8  mem_limit_given = 0, timeout_given = 0;
+  u8  mem_limit_given = 0, timeout_given = 0, qemu_mode = 0;
+  char** use_argv;
 
   doc_path = access(DOC_PATH, F_OK) ? "docs" : DOC_PATH;
 
-  SAYF(cCYA "afl-tmin " cBRI VERSION cRST " (" __DATE__ " " __TIME__ 
-       ") by <lcamtuf@google.com>\n");
+  SAYF(cCYA "afl-tmin " cBRI VERSION cRST " by <lcamtuf@google.com>\n");
 
-  while ((opt = getopt(argc,argv,"+i:o:f:m:t:xe")) > 0)
+  while ((opt = getopt(argc,argv,"+i:o:f:m:t:xeQ")) > 0)
 
     switch (opt) {
 
@@ -800,7 +990,15 @@ int main(int argc, char** argv) {
         timeout_given = 1;
 
         exec_tmout = atoi(optarg);
-        if (exec_tmout < 20) FATAL("Dangerously low value of -t");
+        if (exec_tmout < 10) FATAL("Dangerously low value of -t");
+        break;
+
+      case 'Q':
+
+        if (qemu_mode) FATAL("Multiple -Q options not supported");
+        if (!mem_limit_given) mem_limit = MEM_LIMIT_QEMU;
+
+        qemu_mode = 1;
         break;
 
       default:
@@ -816,7 +1014,13 @@ int main(int argc, char** argv) {
 
   set_up_environment();
 
+  find_binary(argv[optind]);
   detect_file_args(argv + optind);
+
+  if (qemu_mode)
+    use_argv = get_qemu_argv(argv[0], argv + optind, argc - optind);
+  else
+    use_argv = argv + optind;
 
   SAYF("\n");
 
@@ -825,7 +1029,7 @@ int main(int argc, char** argv) {
   ACTF("Performing dry run (mem limit = %llu MB, timeout = %u ms%s)...",
        mem_limit, exec_tmout, edges_only ? ", edges only" : "");
 
-  run_target(argv + optind, in_data, in_len, 1);
+  run_target(use_argv, in_data, in_len, 1);
 
   if (child_timed_out)
     FATAL("Target binary times out (adjusting -t may help).");
@@ -841,7 +1045,7 @@ int main(int argc, char** argv) {
 
   }
 
-  minimize(argv + optind);
+  minimize(use_argv);
 
   ACTF("Writing output to '%s'...", out_file);
 
